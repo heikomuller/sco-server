@@ -1,0 +1,931 @@
+swagger: "2.0"
+
+info:
+  version: 0.0.1
+  title: Data Server - Web API
+  description: API to access and manipulate resources managed by the Standard Cortical Observer Web Service
+  license:
+    name: GNU GPLv3
+    url: https://www.gnu.org/licenses/gpl-3.0.en.html
+
+schemes:
+  - http
+host: cds-swg1.cims.nyu.edu:5050
+basePath: /sco-server/api/v1
+
+paths:
+    /:
+        get:
+            summary: API Overview
+            description: Overview of Web API and links to relevant resources and methods
+            operationId: overview
+            tags:
+                - overview
+            produces:
+              - application/json
+            responses:
+                200:
+                    description: Simple descriptive object
+                    schema:
+                        type: object
+                        required:
+                            - name
+                            - links
+                        properties:
+                            name:
+                                type: string
+                            links:
+                                type: array
+                                items:
+                                    $ref: "#/definitions/Reference"
+    /experiments:
+        get:
+            summary: List experiments
+            description: List of experiment objects
+            operationId: listExperiments
+            tags:
+                - experiment
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of experiments
+                    schema:
+                        $ref: "#/definitions/DBObjectListing"
+                400:
+                    description: Invalid parameter value
+        post:
+            summary: Create experiment
+            description: Create new experiment object
+            operationId: createExperiment
+            tags:
+                - experiment
+            parameters:
+                - name: experiment
+                  in: body
+                  required: true
+                  description: Experiment definition containing name, subject, image group, and optional fMRI data references
+                  schema:
+                      type: object
+                      required:
+                          - name
+                          - subject
+                          - images
+                      properties:
+                          name:
+                              type : string
+                          subject:
+                              type: string
+                          images:
+                              type: string
+                          fmri:
+                              type: string
+            consumes:
+                - application/json
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: Experiment object created
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid request body
+    /experiments/{objectId}:
+        get:
+            summary: Get experiment
+            description: Get experiment object with given identifier
+            operationId: getExperiment
+            tags:
+                - experiment
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Experiment object
+                    schema:
+                        $ref: "#/definitions/DBObjectHandle"
+                404:
+                    description: Unknown experiment object
+        post:
+            summary: Update experiment
+            description: Update associated functional data for experiment object
+            operationId: upsertExperiment
+            tags:
+                - experiment
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Identifier for associated functional data object
+                  schema:
+                      type: object
+                      required:
+                          - fmri
+                      properties:
+                          fmri:
+                              type : string
+            responses:
+                200:
+                    description: Functional data object reference updated
+                404:
+                    description: Unknown experiment object
+        delete:
+            summary: Delete experiment
+            description: Delete experiment object from database
+            operationId: deleteExperiment
+            tags:
+                - experiment
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown experiment
+    /experiments/{objectId}/properties:
+        post:
+            summary: Update experiment property
+            description: Insert, delete, or update property of experiment object
+            operationId: upsertExperimentProperty
+            tags:
+                - experiment
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                404:
+                    description: Unknown experiment object
+    /fmris:
+        get:
+            summary: List functional MRIs
+            description: List of functional MRI data objects
+            operationId: listFMRIs
+            tags:
+                - functional data
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of functional MRI objects
+                    schema:
+                        $ref: "#/definitions/DBObjectListing"
+                400:
+                    description: Invalid parameter value
+        post:
+            summary: Create functional MRI object via file upload
+            description: Upload a functional MRI data archive file
+            operationId: uploadFMRI
+            tags:
+                - functional data
+            parameters:
+                - name: file
+                  in: formData
+                  required: true
+                  description: Functional MRI data archive file
+                  type: file
+            consumes:
+                - multipart/form-data
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: Upload successful; object(s) created
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid file or request
+    /fmris/{objectId}:
+        get:
+            summary: Get functional MRI data
+            description: Get functional MRI data object with given identifier
+            operationId: getFMRI
+            tags:
+                - functional data
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of functional MRI data object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Functional MRI data object
+                    schema:
+                        $ref: "#/definitions/DBObjectHandle"
+                404:
+                    description: Unknown functional MRI data object
+        delete:
+            summary: Delete functional MRI data object
+            description: Delete functional MRI data object from database
+            operationId: deleteFMRI
+            tags:
+                - functional data
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of functional MRI data object
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown subject
+    /fmris/{objectId}/properties:
+        post:
+            summary: Update functional MRI data property
+            description: Insert, delete, or update property of functional MRI data object
+            operationId: upsertFMRIProperty
+            tags:
+                - functional data
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of functional MRI data object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                404:
+                    description: Unknown functional MRI data object
+    /fmris/{objectId}/data:
+        get:
+            summary: Download functional MRI data file
+            description: Download original functional MRI data file for object with given identifier
+            operationId: downloadFMRI
+            tags:
+                - functional data
+                - download
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of functional MRI data object
+                  type: string
+            produces:
+                - application/gzip
+                - application/x-tar
+            responses:
+                200:
+                    description: File object
+                    schema:
+                        type: file
+                404:
+                    description: File not found
+    /images/files:
+        get:
+            summary: List images
+            description: List of image objects
+            operationId: listImage
+            tags:
+                - image
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of image objects
+                    schema:
+                        $ref: "#/definitions/DBObjectListing"
+                400:
+                    description: Invalid parameter value
+    /images/files/{objectId}:
+        get:
+            summary: Get image
+            description: Get image object with given identifier
+            operationId: getImage
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Subject object
+                    schema:
+                        $ref: "#/definitions/DBObjectHandle"
+                404:
+                    description: Unknown subject
+        delete:
+            summary: Delete image object
+            description: Delete image object from database
+            operationId: deleteImage
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image object
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown subject
+    /images/files/{objectId}/properties:
+        post:
+            summary: Update image property
+            description: Insert, delete, or update property of image object
+            operationId: upsertImageProperty
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                404:
+                    description: Unknown anatomy object
+    /images/files/{objectId}/data:
+        get:
+            summary: Download image file
+            description: Download single image file for object with given identifier
+            operationId: downloadImage
+            tags:
+                - image
+                - download
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image object
+                  type: string
+            produces:
+                - image/jpeg
+                - image/png
+                - image/gif
+            responses:
+                200:
+                    description: File object
+                    schema:
+                        type: file
+                404:
+                    description: File not found
+    /images/groups:
+        get:
+            summary: List image groups
+            description: List of image group objects
+            operationId: listImageGroup
+            tags:
+                - image
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of image group objects
+                    schema:
+                        $ref: "#/definitions/DBObjectListing"
+                400:
+                    description: Invalid parameter value
+    /images/groups/{objectId}:
+        get:
+            summary: Get image group
+            description: Get image group object with given identifier
+            operationId: getImageGroup
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image group object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Image group object
+                    schema:
+                        $ref: "#/definitions/ImageGroupHandle"
+                404:
+                    description: Unknown subject
+        delete:
+            summary: Delete image group object
+            description: Delete image group object from database
+            operationId: deleteImageGroup
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image group object
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown subject
+    /images/groups/{objectId}/data:
+        get:
+            summary: Download image groups
+            description: Download image groups file for object with given identifier
+            operationId: downloadImage
+            tags:
+                - image
+                - download
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image group object
+                  type: string
+            produces:
+                - application/gzip
+                - application/x-tar
+            responses:
+                200:
+                    description: File object
+                    schema:
+                        type: file
+                404:
+                    description: File not found
+    /images/groups/{objectId}/options:
+        post:
+            summary: Update image group options
+            description: Update set of options of image group object
+            operationId: updateImageGroupOptions
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image group object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      type: object
+                      required:
+                          - options
+                      properties:
+                          options:
+                              type: array
+                              items:
+                                  $ref: "#/definitions/Attribute"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                404:
+                    description: Unknown anatomy object
+    /images/groups/{objectId}/properties:
+        post:
+            summary: Update image group property
+            description: Insert, delete, or update property of image group object
+            operationId: upsertImageGroupProperty
+            tags:
+                - image
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of image group object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                404:
+                    description: Unknown anatomy object
+    /images/upload:
+        post:
+            summary: Create image or image group via file upload
+            description: Upload a single file image or tar-file of images
+            operationId: uploadImages
+            tags:
+                - image
+            parameters:
+                - name: file
+                  in: formData
+                  required: true
+                  description: Image or archive file
+                  type: file
+            consumes:
+                - multipart/form-data
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: Upload successful; object(s) created
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid file or request
+    /subjects:
+        get:
+            summary: List subjects
+            description: List of brain anatomy MRI objects
+            operationId: listSubjects
+            tags:
+                - subject
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of subject anatomy objects
+                    schema:
+                        $ref: "#/definitions/DBObjectListing"
+                400:
+                    description: Invalid parameter value
+        post:
+            summary: Create subject via file upload
+            description: Upload a brain anatomy MRI archive (Freesurfer directory)
+            operationId: uploadSubject
+            tags:
+                - subject
+            parameters:
+                - name: file
+                  in: formData
+                  required: true
+                  description: Freesurfer directory archive file
+                  type: file
+            consumes:
+                - multipart/form-data
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: Upload successful; object(s) created
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid file or request
+    /subjects/{objectId}:
+        get:
+            summary: Get subject
+            description: Get brain anatomy MRI object with given identifier
+            operationId: getSubject
+            tags:
+                - subject
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of subject
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Subject object
+                    schema:
+                        $ref: "#/definitions/DBObjectHandle"
+                404:
+                    description: Unknown subject
+        delete:
+            summary: Delete subject
+            description: Delete brain anatomy MRI object from database
+            operationId: deleteSubject
+            tags:
+                - subject
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of subject
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown subject
+    /subjects/{objectId}/properties:
+        post:
+            summary: Update subject property
+            description: Insert, delete, or update property of subject
+            operationId: upsertSubjectProperty
+            tags:
+                - subject
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of subject
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                404:
+                    description: Unknown anatomy object
+    /subjects/{objectId}/data:
+        get:
+            summary: Download anatomy file
+            description: Download original anatomy file for object with given identifier
+            operationId: downloadSubject
+            tags:
+                - subject
+                - download
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of subject
+                  type: string
+            produces:
+                - application/gzip
+                - application/x-tar
+            responses:
+                200:
+                    description: File object
+                    schema:
+                        type: file
+                404:
+                    description: File not found
+definitions:
+    Attribute:
+        type: object
+        required:
+            - name
+            - value
+        properties:
+            name:
+                type: string
+            value:
+                type: string
+    DBObjectHandle:
+        type: object
+        required:
+            - id
+            - timestamp
+            - name
+            - properties
+            - links
+        properties:
+            id:
+                type: string
+            timestamp:
+                type: string
+            name:
+                type: string
+            properties:
+                type: array
+                items:
+                    $ref: "#/definitions/KeyValuePair"
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    DBObjectListing:
+        type: object
+        required:
+            - offset
+            - count
+            - items
+            - links
+        properties:
+            properties:
+                type: array
+                items:
+                    type: string
+            offset:
+                type: integer
+            limit:
+                type: integer
+            count:
+                type: integer
+            items:
+                type: array
+                items:
+                    $ref: "#/definitions/DBObjectHandle"
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    ImageGroupHandle:
+        allOf:
+            - $ref: '#/definitions/DBObjectHandle'
+            - properties:
+                images:
+                    type: array
+                    items:
+                        type: object
+                        required:
+                            - identifier
+                            - folder
+                            - name
+                            - links
+                        properties:
+                            identifier:
+                                type: string
+                            folder:
+                                type: string
+                            name:
+                                type: string
+                            links:
+                                type: array
+                                items:
+                                    $ref: "#/definitions/Reference"
+                options:
+                    type: array
+                    items:
+                        $ref: "#/definitions/Attribute"
+    KeyValuePair:
+        type: object
+        required:
+            - key
+            - value
+        properties:
+            key:
+                type: string
+            value:
+                type: string
+    OpResult:
+        type: object
+        required:
+            - result
+            - links
+        properties:
+            result:
+                type: string
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    Reference:
+        type: object
+        required:
+            - rel
+            - href
+        properties:
+            rel:
+                type: string
+            href:
+                type: string
+    UpsertProperty:
+        type: object
+        required:
+            - key
+        properties:
+            key:
+                type: string
+            value:
+                type: string
