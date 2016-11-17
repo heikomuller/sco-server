@@ -94,8 +94,6 @@ paths:
                               type: string
                           images:
                               type: string
-                          fmri:
-                              type: string
             consumes:
                 - application/json
             produces:
@@ -129,34 +127,6 @@ paths:
                         $ref: "#/definitions/DBObjectHandle"
                 404:
                     description: Unknown experiment object
-        post:
-            summary: Update experiment
-            description: Update associated functional data for experiment object
-            operationId: upsertExperiment
-            tags:
-                - experiment
-            parameters:
-                - name: objectId
-                  in: path
-                  required: true
-                  description: Unique identifier of experiment object
-                  type: string
-                - name: property
-                  in: body
-                  required: true
-                  description: Identifier for associated functional data object
-                  schema:
-                      type: object
-                      required:
-                          - fmri
-                      properties:
-                          fmri:
-                              type : string
-            responses:
-                200:
-                    description: Functional data object reference updated
-                404:
-                    description: Unknown experiment object
         delete:
             summary: Delete experiment
             description: Delete experiment object from database
@@ -174,6 +144,37 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment
+    /experiments/{objectId}/fmri:
+        post:
+            summary: Upload fMRI data
+            description: Upload associated functional MRI data for experiment object
+            operationId: uploadFMRI
+            tags:
+                - experiment
+            parameters:
+                - name: objectId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: file
+                  in: formData
+                  required: true
+                  description: Functional MRI data archive file
+                  type: file
+            consumes:
+                - multipart/form-data
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: Upload successful; object(s) created
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid file or request
+                404:
+                    description: Unknown experiment object
     /experiments/{objectId}/properties:
         post:
             summary: Update experiment property
@@ -202,61 +203,6 @@ paths:
                     description: Property deleted
                 404:
                     description: Unknown experiment object
-    /fmris:
-        get:
-            summary: List functional MRIs
-            description: List of functional MRI data objects
-            operationId: listFMRIs
-            tags:
-                - functional data
-            parameters:
-                - name: offset
-                  in: query
-                  required: false
-                  description: Offset position for items in listing
-                  type: integer
-                - name: limit
-                  in: query
-                  required: false
-                  description: Limit number of returned items
-                  type: integer
-                - name: properties
-                  in: query
-                  required: false
-                  description: Comma-separated list of properties to be included in result
-                  type: string
-            produces:
-                - application/json
-            responses:
-                200:
-                    description: List of functional MRI objects
-                    schema:
-                        $ref: "#/definitions/DBObjectListing"
-                400:
-                    description: Invalid parameter value
-        post:
-            summary: Create functional MRI object via file upload
-            description: Upload a functional MRI data archive file
-            operationId: uploadFMRI
-            tags:
-                - functional data
-            parameters:
-                - name: file
-                  in: formData
-                  required: true
-                  description: Functional MRI data archive file
-                  type: file
-            consumes:
-                - multipart/form-data
-            produces:
-                - application/json
-            responses:
-                201:
-                    description: Upload successful; object(s) created
-                    schema:
-                        $ref: "#/definitions/OpResult"
-                400:
-                    description: Invalid file or request
     /fmris/{objectId}:
         get:
             summary: Get functional MRI data
@@ -279,23 +225,6 @@ paths:
                         $ref: "#/definitions/DBObjectHandle"
                 404:
                     description: Unknown functional MRI data object
-        delete:
-            summary: Delete functional MRI data object
-            description: Delete functional MRI data object from database
-            operationId: deleteFMRI
-            tags:
-                - functional data
-            parameters:
-                - name: objectId
-                  in: path
-                  required: true
-                  description: Unique identifier of functional MRI data object
-                  type: string
-            responses:
-                204:
-                    description: Object deleted
-                404:
-                    description: Unknown subject
     /fmris/{objectId}/properties:
         post:
             summary: Update functional MRI data property

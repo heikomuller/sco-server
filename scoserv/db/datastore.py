@@ -939,7 +939,7 @@ class DefaultObjectStore(MongoDBStore):
         # Retrieve image from database. Abort if it does not exist.
         db_obj = self.get_object(identifier)
         if db_obj is None:
-            return None, None, None
+            return None
         # Return image's data directory, original file name, and mime type
         directory = db_obj.directory
         filename = db_obj.properties[PROPERTY_FILENAME]

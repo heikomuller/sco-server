@@ -12,7 +12,7 @@ import tempfile
 from pymongo import MongoClient
 from werkzeug.utils import secure_filename
 
-import exceptions
+import reqexcpt as exceptions
 import hateoas
 import utils
 import db.datastore as datastore
@@ -97,9 +97,11 @@ class DataServer:
             datastore.OBJ_SUBJECT : urls.subjects.list()
         }
 
-    def create_experiment(self, name, subject_id, image_group_id, fmri_data_id=None):
-        """Create a new experiment object. Ensures that all referenced objects
-        are valid.
+    def create_experiment(self, name, subject_id, image_group_id):
+        """Create a new experiment object.
+
+        Ensures that all referenced objects exist. Throws InvalidRequest
+        exception if one of the object does not exist.
 
         Parameters
         ----------
@@ -109,40 +111,34 @@ class DataServer:
             Unique subject identifier
         image_group_id : string
             Unique image group identifier
-        fmri_data_id : string, optional
-            Unique functional data object identifier
 
         Returns
         -------
-        List
-            List of object references for created object. The result is None in
-            case of errors.
+        experiment.ExperimentHandle
+            Handle for created experiment object in database.
         """
         # Ensure that the subject identifier refers to an existing object.
         if not self.object_store(datastore.OBJ_SUBJECT).exists_object(subject_id):
-            return None
+            raise exceptions.InvalidRequest('unknown subject reference: ' + subject_id)
         # Ensure that the image group identifier refers to an existing object.
         if not self.object_store(datastore.OBJ_IMAGEGROUP).exists_object(image_group_id):
-            return None
-        # Ensure that the functional data identifier refers to an existing
-        # object (if given).
-        if not fmri_data_id is None:
-            if not self.object_store(datastore.OBJ_FMRI_DATA).exists_object(fmri_data_id):
-                return None
+            raise exceptions.InvalidRequest('unknown image group reference: ' + image_group_id)
         # Get object store for experiments.
         store = self.object_store(datastore.OBJ_EXPERIMENT)
-        # Create new object in experiment store
-        db_obj = store.create_object(
+        # Create new object in experiment store and return it
+        return store.create_object(
             name,
             subject_id,
-            image_group_id,
-            fmri_data=fmri_data_id
+            image_group_id
         )
         # Return object references
-        return self.refs.object_references(db_obj)
 
     def delete_object(self, object_id, object_type):
         """Delete object with given identifier of given type.
+
+        If the given object is an experiment that has an functional MRI data
+        object associated with it we delete the fMRI object as well since these
+        objects have no 'existence' without an experiment.
 
         Parameters
         ----------
@@ -156,13 +152,29 @@ class DataServer:
         Boolean
             Returns True if success or False if object not found.
         """
-        # Return result of object store's get_download method.
+        # Delete object in object store that is associated with the given object
+        # type. Returns a reference to the object or None, if object did not
+        # exist.
         db_obj = self.object_store(object_type).delete_object(object_id)
-        return not db_obj is None
+        # Return object reference or raise ResourceNotFound exception if object
+        # did not exist.
+        if not db_obj is None:
+            # Delete associated FMRI data if the deleted object is an experiment
+            if db_obj.is_experiment:
+                if not db_obj.fmri_data is None:
+                    self.delete_object(
+                        db_obj.fmri_data,
+                        datastore.OBJ_FMRI_DATA
+                    )
+            return db_obj
+        else:
+            raise exceptions.ResourceNotFound(object_id, object_type)
 
     def get_download(self, object_id, object_type):
         """Get download information for object with given identifier of given
         type.
+
+        Raises ResourceNotFound exception if resource does not exist.
 
         Parameters
         ----------
@@ -175,14 +187,20 @@ class DataServer:
         -------
         Tuple (string, string, string)
             Returns directory, file name, and mime type of downloadable file.
-            Result contains all None if object does not exist.
         """
         # Return result of object store's get_download method.
-        return self.object_store(object_type).get_download(object_id)
+        download = self.object_store(object_type).get_download(object_id)
+        if not download is None:
+            return download
+        else:
+            raise exceptions.ResourceNotFound(object_id, object_type)
 
     def get_object(self, object_id, object_type):
         """Retrieve database object. Type specifies the object store
         while identifier specifies the object.
+
+        Raises ResourceNotFound exception if the requested object does not
+        exist.
 
         Parameters
         ----------
@@ -194,8 +212,7 @@ class DataServer:
         Returns
         -------
         Json-like object
-            Dictionary representing the identified object. the result is None
-            if the object does not exists.
+            Dictionary representing the identified object.
         """
         # Get ObjectStore for given object type.
         store = self.object_store(object_type)
@@ -203,7 +220,7 @@ class DataServer:
         # not exists.
         db_obj = store.get_object(object_id)
         if db_obj is None:
-            return None
+            raise exceptions.ResourceNotFound(object_id, object_type)
         # Construct the result item. The base serialization includes identifier,
         # object type, timestamp, name, and properties listing.
         # and add HATEOAS references.
@@ -237,34 +254,34 @@ class DataServer:
             ]
         elif db_obj.is_experiment:
             # Add descriptors for associated objects
-            subject = self.object_store(datastore.OBJ_SUBJECT).get_object(db_obj.subject, include_inactive=True)
-            if subject is None:
-                return None
-            else:
-                item['subject'] = {
-                    'identifier' : subject.identifier,
-                    'name' : subject.name,
-                    'links' : self.refs.object_references(subject)
-                }
-            images = self.object_store(datastore.OBJ_IMAGEGROUP).get_object(db_obj.images, include_inactive=True)
-            if images is None:
-                return None
-            else:
-                item['images'] = {
-                    'identifier' : images.identifier,
-                    'name' : images.name,
-                    'links' : self.refs.object_references(images)
-                }
+            subject = self.object_store(datastore.OBJ_SUBJECT).get_object(
+                db_obj.subject,
+                include_inactive=True
+            )
+            item['subject'] = {
+                'identifier' : subject.identifier,
+                'name' : subject.name,
+                'links' : self.refs.object_references(subject)
+            }
+            images = self.object_store(datastore.OBJ_IMAGEGROUP).get_object(
+                db_obj.images,
+                include_inactive=True
+            )
+            item['images'] = {
+                'identifier' : images.identifier,
+                'name' : images.name,
+                'links' : self.refs.object_references(images)
+            }
             if not db_obj.fmri_data is None:
-                fmri = self.object_store(datastore.OBJ_FMRI_DATA).get_object(db_obj.fmri_data, include_inactive=True)
-                if fmri is None:
-                    return None
-                else:
-                    item['fmri'] = {
-                        'identifier' : fmri.identifier,
-                        'name' : fmri.name,
-                        'links' : self.refs.object_references(fmri)
-                    }
+                fmri = self.object_store(datastore.OBJ_FMRI_DATA).get_object(
+                    db_obj.fmri_data,
+                    include_inactive=True
+                )
+                item['fmri'] = {
+                    'identifier' : fmri.identifier,
+                    'name' : fmri.name,
+                    'links' : self.refs.object_references(fmri)
+                }
         return item
 
     def list_objects(self, object_type, offset=-1, limit=-1, prop_set=None):
@@ -362,42 +379,50 @@ class DataServer:
             raise exceptions.UnknownObjectType(object_type)
         return store
 
-    def update_experiment(self, object_id, fmri_data_id):
+    def upload_experiment_fmri(self, object_id, file):
         """Update the functional data object that is associated with the
         experiment identified by the given object identifier.
 
+        Raises ResourceNotFound exception if experiment is not found.
         Parameters
         ----------
         object_id : string
             Unique experiment identifier
-        fmri_data_id : string
-            Unique functional data object identifier
+        file : FileObject
+            Functional MRI data file that is being uploaded
 
         Returns
         -------
-        int
-            Http response code. 200 if uopdate is successful. Returns 404 if
-            the experiment does not exist and 400 if the functional data object
-            does not exist.
+        ExperimentHandle
+            Handle for updated experiment object in database.
         """
-        # Ensure that the functional data identifier refers to an existing
-        # object. If not, return with 400 (INVALID REQUEST).
-        if not self.object_store(datastore.OBJ_FMRI_DATA).exists_object(fmri_data_id):
-            return 400
         # Get object store for experiments
         store = self.object_store(datastore.OBJ_EXPERIMENT)
-        # Retrieve the experiment from the database. Return 404 if the object
-        # does not exist
-        db_obj = store.get_object(object_id)
-        if db_obj is None:
-            return 404
-        # Update object in database and return success
-        db_obj.fmri_data = fmri_data_id
-        store.replace_object(db_obj)
-        return 200
+        # Retrieve the experiment from the database. Raise exception if the
+        # object does not exist
+        experiment = store.get_object(object_id)
+        if experiment is None:
+            raise exceptions.ResourceNotFound(
+                object_id,
+                datastore.OBJ_EXPERIMENT
+            )
+        # If the experiment has a functional MRI data object associated with
+        # it, delete that object since existence of these objects is determined
+        # by their reference from a subject.
+        if not experiment.fmri_data is None:
+            self.delete_object(experiment.fmri_data, datastore.OBJ_FMRI_DATA)
+        # Create a database object for the uploaded fMRI file.
+        fmri_obj = self.upload_fmri_data(file)
+        # Update object in database and return the updated experiment object
+        experiment.fmri_data = fmri_obj.identifier
+        store.replace_object(experiment)
+        return experiment
 
     def upload_file(self, object_type, file):
         """Generalized method for file uploads. Type specifies the object store.
+
+        Raises a InvalidRequest exceptio if the given object type does not
+        support file uploads.
 
         Parameters
         ----------
@@ -408,23 +433,25 @@ class DataServer:
 
         Returns
         -------
-        List
-            List of object references for created object. The result is None in
-            case of errors.
+        DBObject
+            Handle for the modified database object.
         """
         # Depending on the object type different upload methods are invoked.
         if object_type == datastore.OBJ_SUBJECT:
             return self.upload_subject(file)
         elif object_type in [datastore.OBJ_IMAGE, datastore.OBJ_IMAGEGROUP]:
             return self.upload_images(file)
-        elif object_type == datastore.OBJ_FMRI_DATA:
-            return self.upload_fmri_data(file)
         else:
             # Cannot upload object of given type.
-            return None
+            raise exceptions.InvalidRequest(
+                'object type does not support file upload: ' + object_type
+            )
 
     def upload_fmri_data(self, file):
         """Upload a functional MRI data archive file. Expects a tar-file.
+
+        Throws a InvalidRequest exception if the given file has an unexpected
+        suffix.
 
         Parameters
         ----------
@@ -433,9 +460,8 @@ class DataServer:
 
         Returns
         -------
-        List
-            List of object references for created the uploaded file. If there
-            was an error the list is None.
+        FunctionalDataHandle
+            Handle for the newly created functional MRI data object.
         """
         # Get object store for functional data objects.
         store = self.object_store(datastore.OBJ_FMRI_DATA)
@@ -449,20 +475,22 @@ class DataServer:
             filename = secure_filename(file.filename)
             upload_file = os.path.join(temp_dir, filename)
             file.save(upload_file)
-            try:
-                db_obj = store.create_object(upload_file)
-            except ValueError as ex:
-                return None
+            db_obj = store.create_object(upload_file)
             # Delete the temporary folder
             shutil.rmtree(temp_dir)
-            return self.refs.object_references(db_obj)
+            return db_obj
         else:
             # Not a valid file suffix
-            return None
+            raise exceptions.InvalidRequest(
+                'invalid file suffix: ' + file.filename
+            )
 
     def upload_images(self, file):
         """Upload image file. Expects either a single image or a tar-file of
         images.
+
+        Raises a InvalidRequest exception if the given file does not have a
+        recognized suffix.
 
         Parameters
         ----------
@@ -471,12 +499,14 @@ class DataServer:
 
         Returns
         -------
-        List
-            List of object references for created object (image or image group).
-            The result is None in case of an error.
+        DBObject
+            Handle for the modified image object.
         """
         # Check if file is a single image
-        suffix = utils.get_filename_suffix(file.filename, images.VALID_IMGFILE_SUFFIXES)
+        suffix = utils.get_filename_suffix(
+            file.filename,
+            images.VALID_IMGFILE_SUFFIXES
+        )
         if not suffix is None:
             # Copy the file to a temporary folder and then invoke the image
             # store upload method.
@@ -484,14 +514,14 @@ class DataServer:
             filename = secure_filename(file.filename)
             upload_file = os.path.join(temp_dir, filename)
             file.save(upload_file)
-            try:
-                db_obj = self.object_store(datastore.OBJ_IMAGE).create_object(upload_file)
-            except ValueError as ex:
-                return None
+            db_obj = self.object_store(datastore.OBJ_IMAGE).create_object(
+                upload_file
+            )
             # Delete the temporary folder
             shutil.rmtree(temp_dir)
-            return self.refs.object_references(db_obj)
-        # Check if the file is a valid tar archive (based on siffix)
+            return db_obj
+        # The file has not been recognized as a valid image. Check if the file
+        # is a valid tar archive (based on suffix).
         suffix = utils.get_filename_suffix(file.filename, ARCHIVE_SUFFIXES)
         if not suffix is None:
             # Unpack the file to a temporary folder .
@@ -520,16 +550,25 @@ class DataServer:
                 ))
             # Create image group
             name = os.path.basename(os.path.normpath(filename))[:-len(suffix)]
-            db_obj = self.object_store(datastore.OBJ_IMAGEGROUP).create_object(name, group_images, upload_file)
+            db_obj = self.object_store(datastore.OBJ_IMAGEGROUP).create_object(
+                name,
+                group_images,
+                upload_file
+            )
             # Delete the temporary folder
             shutil.rmtree(temp_dir)
-            return self.refs.object_references(db_obj)
+            return db_obj
         else:
             # Not a valid file suffix
-            return None
+            raise exceptions.InvalidRequest(
+                'invalid file suffix: ' + file.filename
+                )
 
     def upload_subject(self, file):
         """Upload a subject file. Expects a Freesurfer tar-file.
+
+        Raises a InvalidRequest exception if the given file does not have a
+        recognized suffix.
 
         Parameters
         ----------
@@ -538,13 +577,13 @@ class DataServer:
 
         Returns
         -------
-        List
-            List of object references for created subject. If there was an error
-            the list is None.
+        SubjectHandle
+            Handle for the modified subject in database.
         """
         # Get object store for subjects.
         store = self.object_store(datastore.OBJ_SUBJECT)
-        # Get the suffix of the uploaded file. Result is None if not a valid siffix
+        # Get the suffix of the uploaded file. Result is None if not a valid
+        # suffix
         suffix = utils.get_filename_suffix(file.filename, ARCHIVE_SUFFIXES)
         if not suffix is None:
             # Copy the file to a temporary folder and then invoke the database
@@ -553,20 +592,23 @@ class DataServer:
             filename = secure_filename(file.filename)
             upload_file = os.path.join(temp_dir, filename)
             file.save(upload_file)
-            try:
-                db_obj = store.upload_file(upload_file)
-            except ValueError as ex:
-                return None
+            db_obj = store.upload_file(upload_file)
             # Delete the temporary folder
             shutil.rmtree(temp_dir)
-            return self.refs.object_references(db_obj)
+            return db_obj
         else:
             # Not a valid file suffix
-            return None
+            raise exceptions.InvalidRequest(
+                'Invalid file suffix: ' + file.filename
+            )
 
     def update_object_attributes(self, object_id, object_type, attributes):
         """Update set of typed attributes (options) that are associated with
         a given object.
+
+        Raises ResourceNotFound exception if the requested object does not
+        exist. Raises InvalidRequest exception if the given attributes violate
+        the attributes definition of the updated object type.
 
         Parameters
         ----------
@@ -576,32 +618,27 @@ class DataServer:
             String representation of object type
         attributes : List(datastore.Attribute)
             List of attribute instances
-
-        Returns
-        -------
-        int
-            Http response code (204 for success, 400 for invalid set of,
-            attributes or 404 if object not found)
         """
         # Get ObjectStore for given object type.
         store = self.object_store(object_type)
         # Test if an object with given identifier exists in the object store.
-        # Abort with 404 if result is False.
+        # Raise ResourceNotFound exception if result is False.
         if not store.exists_object(object_id):
-            return 404
+            raise exceptions.ResourceNotFound(object_id, object_type)
         # Call the object store specific method to update object options
         try:
             store.update_object_attributes(object_id, attributes)
         except ValueError as err:
-            print err
-            return 400
-        # Return 204 to signal successful update of object attributes
-        return 204
+            raise exceptions.InvalidRequest(str(err))
 
     def upsert_object_property(self, object_id, object_type, json_obj):
         """Upsert property of given object. Type specifies the object store
         while identifier specifies the object. The response depends on whether
         the object property was created, updated, or deleted.
+
+        Raises ResourceNotFound exception if the requested object does not
+        exist. Raises InvalidRequest exception if the upsert resulted in an
+        illegal operation.
 
         Parameters
         ----------
@@ -620,11 +657,11 @@ class DataServer:
         """
         # Get ObjectStore for given object type.
         store = self.object_store(object_type)
-        # Get the object identifier by object_id. Abort with 404 if result is
-        # None
+        # Get the object identifier by object_id. Raise ResourceNotFound
+        # exception if result is None
         db_obj = store.get_object(object_id)
         if db_obj is None:
-            return 404
+            raise exceptions.ResourceNotFound(object_id, object_type)
         # Call the update_object_property method of the ObjectStore with the key
         # and optional value fields
         key = json_obj['key']
@@ -632,7 +669,9 @@ class DataServer:
         state = store.upsert_object_property(db_obj.identifier, key, value=value)
         # Return a response code based on the outcome of the update operation.
         if state == datastore.OP_ILLEGAL:
-            return 400
+            message = 'illegal upsert for type ' + object_type
+            message += ': (' + key + ', ' + value + ')'
+            raise exceptions.InvalidRequest(message)
         elif state == datastore.OP_CREATED:
             return 201
         elif state == datastore.OP_DELETED:
@@ -640,4 +679,6 @@ class DataServer:
         elif state == datastore.OP_UPDATED:
             return 200
         else: # -1
-            return 404
+            # This point should never be reached, unless object has been deleted
+            # concurrently.
+            raise exceptions.ResourceNotFound(object_id, object_type)

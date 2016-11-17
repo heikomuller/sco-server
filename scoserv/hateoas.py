@@ -1,6 +1,6 @@
 """Collection of classes and methods to generate URL's for API resources."""
 
-import exceptions
+import reqexcpt as exceptions
 import utils
 
 
@@ -139,7 +139,7 @@ class PaginationDecorator:
         else:
             return self.first()
 
-class ObjectUrls:
+class ObjectUrls(object):
     """Factory object for individual object type Urls. This class implements
     the general pattern for resource Urls.
 
@@ -262,6 +262,36 @@ class ObjectUrls:
         return self.get(identifier) + '/properties'
 
 
+class ExperimentUrls(ObjectUrls):
+    def __init__(self, base_url, class_identifier):
+        """ Initialize the URL factory by setting the base url and class
+        identifier.
+
+        Parameters
+        ----------
+        base_url : string
+            Base URL used for all URL's returned by the factory object.
+        class_identifier : string
+            Unique identifier for experiment objects in the API
+        """
+        super(ExperimentUrls, self).__init__(base_url, class_identifier)
+
+    def upload_fmri(self, identifier):
+        """ Get Url to upload a functional MRI data file and associate it with
+        the experiment that is identified by the given identifier.
+
+        Parameters
+        ----------
+        identifier : string
+            Unique experiment object identifier
+
+        Returns
+        -------
+        string
+            Functional data file upload URL
+        """
+        return self.get(identifier) + '/fmri'
+
 class UrlFactory:
     """Factory object for Web API URL's. Encapsulates generation of URL's for
     API resources in a single class.
@@ -293,7 +323,7 @@ class UrlFactory:
         # Remove trailing '/'
         while self.base_url.endswith('/'):
             self.base_url = self.base_url[:-1]
-        self.experiments = ObjectUrls(self.base_url, 'experiments')
+        self.experiments = ExperimentUrls(self.base_url, 'experiments')
         self.fmris = ObjectUrls(self.base_url, 'fmris')
         self.images = ObjectUrls(self.base_url, 'images/files')
         self.image_groups = ObjectUrls(self.base_url, 'images/groups')
@@ -346,9 +376,9 @@ class HATEOASReferenceFactory:
             links['upsert'] = self.urls.subjects.upsert_property(db_obj.identifier)
         elif db_obj.is_experiment:
             links['delete'] = self.urls.experiments.delete(db_obj.identifier)
+            links['upload.fmri'] = self.urls.experiments.upload_fmri(db_obj.identifier)
             links['upsert'] = self.urls.experiments.upsert_property(db_obj.identifier)
         elif db_obj.is_fmri_data:
-            links['delete'] = self.urls.fmris.delete(db_obj.identifier)
             links['download'] = self.urls.fmris.download(db_obj.identifier)
             links['upsert'] = self.urls.fmris.upsert_property(db_obj.identifier)
         elif db_obj.is_image:
@@ -406,11 +436,12 @@ class HATEOASReferenceFactory:
         """
         return self.to_references({
             'self' : self.urls.base_url,
-            'subjects' : self.urls.subjects.list(),
-            'images' : self.urls.images.list(),
-            'imageGroups' : self.urls.image_groups.list(),
+            'list.experiments' : self.urls.experiments.list(),
+            'list.subjects' : self.urls.subjects.list(),
+            'list.images' : self.urls.images.list(),
+            'list.imageGroups' : self.urls.image_groups.list(),
+            'create.experiments' : self.urls.experiments.create(),
             'upload.subjects' : self.urls.subjects.create(),
-            'upload.fmris' : self.urls.fmris.create(),
             'upload.images' : self.urls.images.create()
         })
 

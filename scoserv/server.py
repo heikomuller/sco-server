@@ -1,12 +1,13 @@
 #!venv/bin/python
 import getopt
+import os
 import sys
 
-from flask import Flask, abort, jsonify, make_response, request, send_file, send_from_directory
+from flask import Flask, jsonify, make_response, request, send_file, send_from_directory
 from flask_cors import CORS
 
 import api
-import exceptions
+import reqexcpt as exceptions
 import hateoas
 import db.datastore as datastore
 
@@ -21,8 +22,12 @@ APP_PATH = '/sco-server/api/v1'
 SERVER_URL = 'http://localhost'
 SERVER_PORT = 5050
 
+# Flag to swith debugging on/off
+DEBUG = True
 # Local folders
 DATA_DIR = '../resources/data'
+# Log file
+LOG_FILE = os.path.abspath(DATA_DIR + 'scoserv.log')
 
 # ------------------------------------------------------------------------------
 # Parse command line arguments
@@ -78,6 +83,7 @@ else:
 # Create the app and enable cross-origin resource sharing
 app = Flask(__name__)
 app.config['APPLICATION_ROOT'] = APP_PATH
+app.config['DEBUG'] = DEBUG
 CORS(app)
 
 # Instantiate the URL factory
@@ -115,11 +121,8 @@ def list_experiments():
     """List experiments data (GET) - List of all experiment objects in the
     database.
     """
-    try:
-        # Method raises exception if request argument values are not integers
-        return jsonify(list_objects(request, datastore.OBJ_EXPERIMENT))
-    except ValueError:
-        abort(400)
+    # Method raises exception if request argument values are not integers
+    return jsonify(list_objects(request, datastore.OBJ_EXPERIMENT))
 
 
 @app.route('/experiments', methods=['POST'])
@@ -128,61 +131,33 @@ def create_experiment():
     """
     # Make sure that the post request has a json part
     if not request.json:
-        abort(400)
+        raise exceptions.InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     # Make sure that all required keys are present in the given Json object
     for key in ['name', 'subject', 'images']:
         if not key in json_obj:
-            abort(400)
-    # Set functional data if key is present.
-    functional_data = json_obj['fmri'] if 'fmri' in json_obj else None
-    # Call upload method of API
-    refs = sco.create_experiment(
+            raise exceptions.InvalidRequest('missing element in Json body: ' + key)
+    # Call upload method of API to get a new experiment object handle.
+    experiment = sco.create_experiment(
         json_obj['name'],
         json_obj['subject'],
-        json_obj['images'],
-        fmri_data_id=functional_data
+        json_obj['images']
     )
-    if not refs is None:
-        return jsonify({
-            'result' : 'SUCCESS',
-            'links': refs
-        })
-    else:
-        abort(400)
+    # Return result including list of references for new experiment.
+    return jsonify({
+        'result' : 'SUCCESS',
+        'links': sco.refs.object_references(experiment)
+    }), 201
 
 
 @app.route('/experiments/<string:object_id>', methods=['GET'])
 def get_experiment(object_id):
     """Get experiment (GET) - Retrieve an experiment object from the database.
     """
-    result = sco.get_object(object_id, datastore.OBJ_EXPERIMENT)
-    if not result is None:
-        return jsonify(result)
-    else:
-        abort(404)
-
-
-@app.route('/experiments/<string:object_id>', methods=['POST'])
-def update_experiment(object_id):
-    """Update experiment (POST) - Update functional data information associated
-    with an experiment.
-    """
-    # Upsert the object property. If response code is below 400 return with
-    # success, otherwise abort.
-    # Make sure that the post request has a json part
-    if not request.json:
-        abort(400)
-    json_obj = request.json
-    # Make sure that 'fmri' key is present in the given Json object
-    if not 'fmri' in json_obj:
-        abort(400)
-    # Update experiment. Code idicates success (< 400) or error (>= 400)
-    code = sco.update_experiment(object_id,  json_obj['fmri'])
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
+    # Return Json serialization of object. The API throws ResourceNotFound
+    # excpetion if the given object identifier does not reference an existing
+    # experiment.
+    return jsonify(sco.get_object(object_id, datastore.OBJ_EXPERIMENT))
 
 
 @app.route('/experiments/<string:object_id>', methods=['DELETE'])
@@ -190,70 +165,53 @@ def delete_experiment(object_id):
     """Delete experiment (DELETE) - Delete an experiment object from the
     database.
     """
-    # Delete experiment object with given identifier. Return 204 if
-    # successful and 404 if the result of the delete operation is False, i.e.,
-    # object not found.
-    if sco.delete_object(object_id, datastore.OBJ_EXPERIMENT):
-        return '', 204
-    else:
-        abort(404)
+    # Delete experiment object with given identifier and return 204. The API
+    # will throw ResourceNotFound exception if the given identifier does not
+    # reference an existing experiment.
+    sco.delete_object(object_id, datastore.OBJ_EXPERIMENT)
+    return '', 204
 
+@app.route('/experiments/<string:object_id>/fmri', methods=['POST'])
+def upload_experiment_fmri(object_id):
+    """Upload functional MRI data (POST) - Upload a functional MRI data archive
+    file that is associated with a experiment.
+    """
+    # Get the uploaded file. Method raises InvalidRequest if no file was given
+    upload_file = get_upload_file(request)
+    # Upload the fMRI data and associate it with the experiment. Method will
+    # raise InvalidRequest or ResourceNotFound exceptions.
+    experiment = sco.upload_experiment_fmri(object_id, upload_file)
+    # Return result including a list of references to updated experiment
+    return jsonify({
+        'result' : 'SUCCESS',
+        'links': sco.refs.object_references(experiment)
+    })
 
 @app.route('/experiments/<string:object_id>/properties', methods=['POST'])
 def upsert_experiment_property(object_id):
     """Upsert experiment property (POST) - Upsert a property of an experiment
     object in the database.
     """
-    # Upsert the object property. If response code is below 400 return with
-    # success, otherwise abort.
+    # Upsert the object property. If response code indicates whether the
+    # property was created, updated, or deleted. Method throws InvalidRequest
+    # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(request, object_id, datastore.OBJ_EXPERIMENT)
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
+    return '', code
 
 
 # ------------------------------------------------------------------------------
 # Functional Data
 # ------------------------------------------------------------------------------
 
-@app.route('/fmris')
-def list_fmris():
-    """List functional MRI data (GET) - List of all functional MRI data objects
-    in the database.
-    """
-    try:
-        # Method raises exception if request argument values are not integers
-        return jsonify(list_objects(request, datastore.OBJ_FMRI_DATA))
-    except ValueError:
-        abort(400)
-
-
-@app.route('/fmris', methods=['POST'])
-def upload_fmri():
-    """Upload functional MRI data (POST) - Upload a functional MRI data archive
-    file.
-    """
-    refs =  upload_file(request, datastore.OBJ_FMRI_DATA)
-    if not refs is None:
-        return jsonify({
-            'result' : 'SUCCESS',
-            'links': refs
-        })
-    else:
-        abort(400)
-
-
 @app.route('/fmris/<string:object_id>', methods=['GET'])
 def get_fmri(object_id):
     """Get functional MRI data (GET) - Retrieve a functional MRI data object
     from the database.
     """
-    result = sco.get_object(object_id, datastore.OBJ_FMRI_DATA)
-    if not result is None:
-        return jsonify(result)
-    else:
-        abort(404)
+    # Return Json serialization of object. The API throws ResourceNotFound
+    # excpetion if the given object identifier does not reference an existing
+    # functional MRI data object.
+    return jsonify(sco.get_object(object_id, datastore.OBJ_FMRI_DATA))
 
 
 @app.route('/fmris/<string:object_id>/properties', methods=['POST'])
@@ -261,27 +219,11 @@ def upsert_fmri_property(object_id):
     """Upsert functional MRI data object (POST) - Upsert a property of a
     functional MRI data object in the database.
     """
-    # Upsert the object property. If response code is below 400 return with
-    # success, otherwise abort.
+    # Upsert the object property. If response code indicates whether the
+    # property was created, updated, or deleted. Method throws InvalidRequest
+    # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(request, object_id, datastore.OBJ_FMRI_DATA)
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
-
-
-@app.route('/fmris/<string:object_id>', methods=['DELETE'])
-def delete_fmri(object_id):
-    """Delete functional MRI data (DELETE) - Delete a functional MRI data object
-    from the database.
-    """
-    # Delete functional MRI data object with given identifier. Return 204 if
-    # successful and 404 if the result of the delete operation is False, i.e.,
-    #object not found.
-    if sco.delete_object(object_id, datastore.OBJ_FMRI_DATA):
-        return '', 204
-    else:
-        abort(404)
+    return '', code
 
 
 @app.route('/fmris/<string:object_id>/data')
@@ -289,11 +231,10 @@ def download_fmri(object_id):
     """Download functional MRI data (GET) - Download data of previously uploaded
     functional MRI data.
     """
-    # Get download information for given object. Result is None if object does not
-    # exists or does not have any downloadable representation.
+    # Get download information for given object. Method raises ResourceNotFound
+    # exception if object does not exists or does not have any downloadable
+    # representation.
     directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_FMRI_DATA)
-    if directory is None:
-        abort(404)
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -311,21 +252,17 @@ def download_fmri(object_id):
 @app.route('/images/files')
 def list_images():
     """List images (GET) - List of all image objects in the database."""
-    try:
-        # Method raises exception if request argument values are not integers
-        return jsonify(list_objects(request, datastore.OBJ_IMAGE))
-    except ValueError:
-        abort(400)
+    # Method raises exception if request argument values are not integers
+    return jsonify(list_objects(request, datastore.OBJ_IMAGE))
 
 
 @app.route('/images/files/<string:object_id>', methods=['GET'])
 def get_image(object_id):
     """Get image (GET) - Retrieve an image object from the database."""
-    result = sco.get_object(object_id, datastore.OBJ_IMAGE)
-    if not result is None:
-        return jsonify(result)
-    else:
-        abort(404)
+    # Return Json serialization of object. The API throws ResourceNotFound
+    # excpetion if the given object identifier does not reference an existing
+    # image object.
+    return jsonify(sco.get_object(object_id, datastore.OBJ_IMAGE))
 
 
 @app.route('/images/files/<string:object_id>/properties', methods=['POST'])
@@ -333,13 +270,11 @@ def upsert_image_property(object_id):
     """Upsert image object (POST) - Upsert a property of an image object in the
     database.
     """
-    # Upsert the object property. If response code is below 400 return with
-    # success, otherwise abort.
+    # Upsert the object property. If response code indicates whether the
+    # property was created, updated, or deleted. Method throws InvalidRequest
+    # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(request, object_id, datastore.OBJ_IMAGE)
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
+    return '', code
 
 
 @app.route('/images/files/<string:object_id>', methods=['DELETE'])
@@ -347,23 +282,20 @@ def delete_image(object_id):
     """Delete image object (DELETE) - Delete an image object from the
     database.
     """
-    # Delete image object with given identifier. Return 204 if successful
-    # and 404 if the result of the delete operation is False, i.e., object
-    # not found.
-    if sco.delete_object(object_id, datastore.OBJ_IMAGE):
-        return '', 204
-    else:
-        abort(404)
+    # Delete image object with given identifier and return 204. The API
+    # will throw ResourceNotFound exception if the given identifier does not
+    # reference an existing image.
+    sco.delete_object(object_id, datastore.OBJ_IMAGE)
+    return '', 204
 
 
 @app.route('/images/files/<string:object_id>/data')
 def download_image(object_id):
     """Download image file (GET)"""
-    # Get download information for given object. Result is None if object does not
-    # exists or does not have any downloadable representation.
+    # Get download information for given object. Method raises ResourceNotFound
+    # exception if object does not exists or does not have any downloadable
+    # representation.
     directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_IMAGE)
-    if directory is None:
-        abort(404)
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -381,21 +313,17 @@ def download_image(object_id):
 @app.route('/images/groups')
 def list_image_groups():
     """List image groups (GET) - List of all image group objects in the database."""
-    try:
-        # Method raises exception if request argument values are not integers
-        return jsonify(list_objects(request, datastore.OBJ_IMAGEGROUP))
-    except ValueError:
-        abort(400)
+    # Method raises exception if request argument values are not integers
+    return jsonify(list_objects(request, datastore.OBJ_IMAGEGROUP))
 
 
 @app.route('/images/groups/<string:object_id>', methods=['GET'])
 def get_image_group(object_id):
     """Get image group (GET) - Retrieve an image group from the database."""
-    result = sco.get_object(object_id, datastore.OBJ_IMAGEGROUP)
-    if not result is None:
-        return jsonify(result)
-    else:
-        abort(404)
+    # Return Json serialization of object. The API throws ResourceNotFound
+    # excpetion if the given object identifier does not reference an existing
+    # image group object.
+    return jsonify(sco.get_object(object_id, datastore.OBJ_IMAGEGROUP))
 
 
 @app.route('/images/groups/<string:object_id>', methods=['DELETE'])
@@ -403,23 +331,20 @@ def delete_image_group(object_id):
     """Delete image group (DELETE) - Delete an image group object from the
     database.
     """
-    # Delete image object with given identifier. Return 204 if successful
-    # and 404 if the result of the delete operation is False, i.e., object
-    # not found.
-    if sco.delete_object(object_id, datastore.OBJ_IMAGEGROUP):
-        return '', 204
-    else:
-        abort(404)
+    # Delete image group object with given identifier and return 204. The API
+    # will throw ResourceNotFound exception if the given identifier does not
+    # reference an existing image group.
+    sco.delete_object(object_id, datastore.OBJ_IMAGEGROUP)
+    return '', 204
 
 
 @app.route('/images/groups/<string:object_id>/data')
 def download_image_group(object_id):
     """Download image group file (GET)"""
-    # Get download information for given object. Result is None if object does not
-    # exists or does not have any downloadable representation.
+    # Get download information for given object. Method raises ResourceNotFound
+    # exception if object does not exists or does not have any downloadable
+    # representation.
     directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_IMAGEGROUP)
-    if directory is None:
-        abort(404)
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -438,23 +363,18 @@ def update_image_group_options(object_id):
     """
     # Make sure that the request contains a Json body with an 'options' element
     if not request.json:
-        abort(400)
+        raise exceptions.InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     if not 'options' in json_obj:
-        abort(400)
+        raise exceptions.InvalidRequest('missing element in Json body: options')
     # Convert the Json element associated with key 'options' into a list of
-    # typed property instance. Throws a ValueError if the format of the element
-    # value is invalid.
-    try:
-        attributes = get_attributes(json_obj['options'])
-    except ValueError:
-        abort(400)
-    # Upsert object options. Returned code corresponds to HTTP response code.
-    code = sco.update_object_attributes(object_id, datastore.OBJ_IMAGEGROUP, attributes)
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
+    # typed property instance. Throws an InvalidRequest exception if the format
+    # of the element value is invalid.
+    attributes = get_attributes(json_obj['options'])
+    # Upsert object options. Method will raise InvalidRequest or
+    # ResourceNotFound exceptions if necessary.
+    sco.update_object_attributes(object_id, datastore.OBJ_IMAGEGROUP, attributes)
+    return '', 200
 
 
 @app.route('/images/groups/<string:object_id>/properties', methods=['POST'])
@@ -462,13 +382,11 @@ def upsert_image_group_property(object_id):
     """Upsert image object (POST) - Upsert a property of an image group in the
     database.
     """
-    # Upsert the object property. If response code is below 400 return with
-    # success, otherwise abort.
+    # Upsert the object property. If response code indicates whether the
+    # property was created, updated, or deleted. Method throws InvalidRequest
+    # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(request, object_id, datastore.OBJ_IMAGEGROUP)
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
+    return '', code
 
 
 # ------------------------------------------------------------------------------
@@ -478,14 +396,14 @@ def upsert_image_group_property(object_id):
 @app.route('/images/upload', methods=['POST'])
 def upload_images():
     """Upload Images (POST) - Upload an image file or an archive of images."""
-    refs =  upload_file(request, datastore.OBJ_IMAGE)
-    if not refs is None:
-        return jsonify({
-            'result' : 'SUCCESS',
-            'links': refs
-        })
-    else:
-        abort(400)
+    # Upload the file and an image file or image group. Method will throw
+    # InvalidRequest exception if necessary.
+    img_handle =  sco.upload_file(datastore.OBJ_IMAGE, get_upload_file(request))
+    # Return result including list of references for the new database object.
+    return jsonify({
+        'result' : 'SUCCESS',
+        'links': sco.refs.object_references(img_handle)
+    })
 
 
 # ------------------------------------------------------------------------------
@@ -497,24 +415,21 @@ def list_subjects():
     """List subjects (GET) - List of brain anatomy MRI objects in the
     database.
     """
-    try:
-        # Method raises exception if request argument values are not integers
-        return jsonify(list_objects(request, datastore.OBJ_SUBJECT))
-    except ValueError:
-        abort(400)
+    # Method raises exception if request argument values are not integers
+    return jsonify(list_objects(request, datastore.OBJ_SUBJECT))
 
 
 @app.route('/subjects', methods=['POST'])
 def upload_subject():
     """Upload Subject (POST) - Upload an brain anatomy MRI archive file."""
-    refs =  upload_file(request, datastore.OBJ_SUBJECT)
-    if not refs is None:
-        return jsonify({
-            'result' : 'SUCCESS',
-            'links': refs
-        })
-    else:
-        abort(400)
+    # Upload the given file to get an object handle for new subject. Method
+    # throws InvalidRequest exception if necessary.
+    subject =  sco.upload_file(datastore.OBJ_SUBJECT, get_upload_file(request))
+    # Return result including a list of references to new subject in database.
+    return jsonify({
+        'result' : 'SUCCESS',
+        'links': sco.refs.object_references(subject)
+    })
 
 
 @app.route('/subjects/<string:object_id>', methods=['GET'])
@@ -522,25 +437,10 @@ def get_subject(object_id):
     """Get subject (GET) - Retrieve a brain anatomy MRI object from the
     database.
     """
-    result = sco.get_object(object_id, datastore.OBJ_SUBJECT)
-    if not result is None:
-        return jsonify(result)
-    else:
-        abort(404)
-
-
-@app.route('/subjects/<string:object_id>/properties', methods=['POST'])
-def upsert_subject_property(object_id):
-    """Upsert subject object (POST) - Upsert a property of a brain anatomy MRI
-    object in the database.
-    """
-    # Upsert the object property. If response code is below 400 return with
-    # success, otherwise abort.
-    code = upsert_object_property(request, object_id, datastore.OBJ_SUBJECT)
-    if code < 400:
-        return '', code
-    else:
-        abort(code)
+    # Return Json serialization of object. The API throws ResourceNotFound
+    # excpetion if the given object identifier does not reference an existing
+    # subject data object.
+    return jsonify(sco.get_object(object_id, datastore.OBJ_SUBJECT))
 
 
 @app.route('/subjects/<string:object_id>', methods=['DELETE'])
@@ -548,13 +448,23 @@ def delete_subject(object_id):
     """Delete Subject (DELETE) - Delete a brain anatomy MRI object from the
     database.
     """
-    # Delete anatomy object with given identifier. Return 204 if successful
-    # and 404 if the result of the delete operation is False, i.e., object
-    # not found.
-    if sco.delete_object(object_id, datastore.OBJ_SUBJECT):
-        return '', 204
-    else:
-        abort(404)
+    # Delete subject with given identifier and return 204. The API will throw
+    # ResourceNotFound exception if the given identifier does not reference an
+    # existing subject in the database.
+    sco.delete_object(object_id, datastore.OBJ_SUBJECT)
+    return '', 204
+
+
+@app.route('/subjects/<string:object_id>/properties', methods=['POST'])
+def upsert_subject_property(object_id):
+    """Upsert subject object (POST) - Upsert a property of a brain anatomy MRI
+    object in the database.
+    """
+    # Upsert the object property. If response code indicates whether the
+    # property was created, updated, or deleted. Method throws InvalidRequest
+    # or ResourceNotFound exceptions if necessary.
+    code = upsert_object_property(request, object_id, datastore.OBJ_SUBJECT)
+    return '', code
 
 
 @app.route('/subjects/<string:object_id>/data')
@@ -562,11 +472,10 @@ def download_subject(object_id):
     """Download subject (GET) - Download data of previously uploaded subject
     anatomy.
     """
-    # Get download information for given object. Result is None if object does not
-    # exists or does not have any downloadable representation.
+    # Get download information for given object. Method raises ResourceNotFound
+    # exception if object does not exists or does not have any downloadable
+    # representation.
     directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_SUBJECT)
-    if directory is None:
-        abort(404)
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -593,7 +502,7 @@ def get_attributes(json_array):
 
     Expects a list of Json objects having 'name' and 'value' keys. The type of
     the element associated with the 'value' key is arbitrary. Raises a
-    ValueError if the given array violated expected format.
+    InvalidRequest exception if the given array violated expected format.
 
     Parameters
     ----------
@@ -608,19 +517,46 @@ def get_attributes(json_array):
     result = []
     # Make sure the given array is a list
     if not isinstance(json_array, list):
-        raise ValueError('Argument is not a list')
+        raise exceptions.InvalidRequest('argument is not a list')
     # Iterate over all elements in the list. Make sure they are Json objects
     # with 'name' and 'value' elements
     for element in json_array:
         if not isinstance(element, dict):
-            raise ValueError('Element is not a dictionary')
+            raise exceptions.InvalidRequest('element is not a dictionary')
         for key in ['name', 'value']:
             if not key in element:
-                raise ValueError('Object has not key ' + key)
+                raise exceptions.InvalidRequest('object has not key ' + key)
         name = str(element['name'])
         value = element['value']
         result.append(datastore.Attribute(name, value))
     return result
+
+
+def get_upload_file(request):
+    """Generalized method for file uploads. Ensures that request contains a
+    file and returns the file. Raise InvalidRequest exception if request does
+    not contain an uploded file.
+
+    Parameters
+    ----------
+    request : flask.request
+        Flask request object
+
+    Returns
+    -------
+    File Object
+        File object in upload request.
+    """
+    # Make sure that the post request has the file part
+    if 'file' not in request.files:
+        raise exceptions.InvalidRequest('no file argument in request')
+    file = request.files['file']
+    # A browser may submit a empty part without filename
+    if file.filename == '':
+        raise exceptions.InvalidRequest('empty file name')
+    # Call upload method of API
+    return file
+
 
 def list_objects(request, object_type):
     """Generalized method to return a list of database objects. Ensures that all
@@ -637,48 +573,21 @@ def list_objects(request, object_type):
     -------
     Json-like object
         Dictionary representing list of objects. Raises UnknownObjectType
-        exception if object type is unknown.
+        exception if object type is unknown or InvalidRequest if arguments
+        for pagination are not integers.
     """
     # Check if limit and offset parameters are given. Throws ValueError if
     # values are not integer.
     try:
         offset = int(request.args[hateoas.QPARA_OFFSET]) if hateoas.QPARA_OFFSET in request.args else 0
         limit = int(request.args[hateoas.QPARA_LIMIT]) if hateoas.QPARA_LIMIT in request.args else -1
-    except ValueError:
-        abort(400)
+    except ValueError as err:
+        raise exceptions.InvalidRequest(str(err))
     # Get the set of attributes that are included in the result listing. By
     # default, the object name is always included.
     prop_set = request.args[hateoas.QPARA_PROPERTIES].split(',') if hateoas.QPARA_PROPERTIES in request.args else None
     # Call list_object method of API with request arguments
     return sco.list_objects(object_type, offset=offset, limit=limit, prop_set=prop_set)
-
-
-def upload_file(request, object_type):
-    """Generalized method for file uploads. Ensures that request contains a
-    file and calls the upload method of the API.
-
-    Parameters
-    ----------
-    request : flask.request
-        Flask request object
-    object_type : string
-        String representation of object type
-
-    Returns
-    -------
-    List
-        List of object references for created object. The reference list is
-        None in case of errors.
-    """
-    # Make sure that the post request has the file part
-    if 'file' not in request.files:
-        abort(400)
-    file = request.files['file']
-    # A browser may submit a empty part without filename
-    if file.filename == '':
-        abort(400)
-    # Call upload method of API
-    return sco.upload_file(object_type, file)
 
 
 def upsert_object_property(request, object_id, object_type):
@@ -702,10 +611,10 @@ def upsert_object_property(request, object_id, object_type):
     # Abort with 400 if the request is not a Json request or if the Json object
     # in the request does not have field key. Field value is optional.
     if not request.json:
-        abort(400)
+        raise exceptions.InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     if not 'key' in json_obj:
-        abort(400)
+        raise exceptions.InvalidRequest('missing element in Json body: key')
     # Call API's upsert property method
     return sco.upsert_object_property(object_id, object_type, json_obj)
 
@@ -714,11 +623,30 @@ def upsert_object_property(request, object_id, object_type):
 # Error Handler
 # ------------------------------------------------------------------------------
 
-@app.errorhandler(404)
-def not_found(error):
-    """404 JSON response generator."""
-    print str(error)
-    return make_response(jsonify({'error': 'Not found'}), 404)
+@app.errorhandler(exceptions.APIRequestException)
+def invalid_request_or_resource_not_found(error):
+    """JSON response handler for invalid requests or requests that access
+    unknown resources.
+
+    Parameters
+    ----------
+    error :
+        Exception thrown by request Handler
+
+    Returns
+    -------
+    Http response
+    """
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
+
+
+@app.errorhandler(500)
+def internal_error(exception):
+    """Exception handler that logs exceptions."""
+    app.logger.error(exception)
+    return make_response(jsonify({'error': str(exception)}), 500)
 
 
 # ------------------------------------------------------------------------------
@@ -726,13 +654,28 @@ def not_found(error):
 # Main
 #
 # ------------------------------------------------------------------------------
+
 if __name__ == '__main__':
     # Relevant documents:
     # http://werkzeug.pocoo.org/docs/middlewares/
     # http://flask.pocoo.org/docs/patterns/appdispatch/
     from werkzeug.serving import run_simple
     from werkzeug.wsgi import DispatcherMiddleware
-    app.config['DEBUG'] = True
+    # Switch logging on if not in debug mode
+    if app.debug is not True:
+        import logging
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=1024 * 1024 * 100,
+            backupCount=20
+        )
+        file_handler.setLevel(logging.ERROR)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        file_handler.setFormatter(formatter)
+        app.logger.addHandler(file_handler)
     # Load a dummy app at the root URL to give 404 errors.
     # Serve app at APPLICATION_ROOT for localhost development.
     application = DispatcherMiddleware(Flask('dummy_app'), {

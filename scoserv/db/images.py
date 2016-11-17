@@ -481,7 +481,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         for key in img_coll.options:
             options.append({
                 'name' : key,
-                'value' : img_coll.options[key].value
+                'value' : img_coll.options[key]
             })
         json_obj['options'] = options
         return json_obj
@@ -510,7 +510,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             attr_def = self.options_def[attr.name]
             if not attr_def.validate(attr.value):
                 raise ValueError('Invalid value for attribute: ' + attr.name)
-            options[attr.name] = attr
+            options[attr.name] = attr.value
         # Retrieve object from database and replace existing options
         img_group = self.get_object(object_id)
         img_group.options = options
