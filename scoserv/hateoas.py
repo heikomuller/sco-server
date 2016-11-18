@@ -314,7 +314,7 @@ class ExperimentUrls(ObjectUrls):
         string
             Functional data object URL
         """
-        return self.fmris_upload(identifier) + '/' + identifier.keys[1]
+        return self.fmris_upload(identifier) + '/' + identifier.keys[-1]
 
     def fmris_upload(self, identifier):
         """ Get Url to upload a functional MRI data file and associate it with
@@ -347,6 +347,101 @@ class ExperimentUrls(ObjectUrls):
             Upsert data object property URL
         """
         return self.fmris_get(identifier) + '/properties'
+
+    def predictions_create(self, identifier):
+        """ Get Url to create a model run object that is associated with an
+        experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique model run object identifier
+
+        Returns
+        -------
+        string
+            Create model run URL
+        """
+        return self.predictions_list(identifier)
+
+    def predictions_delete(self, identifier):
+        """ Get Url to delete a model run object and its prediction result.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique model run object identifier
+
+        Returns
+        -------
+        string
+            Delete model run URL
+        """
+        return self.predictions_get(identifier)
+
+    def predictions_download(self, identifier):
+        """ Get Url to download prediction result for a model run object that is
+        associated with an experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique model run object identifier
+
+        Returns
+        -------
+        string
+            Download prediction result URL
+        """
+        return self.predictions_get(identifier) + '/data'
+
+    def predictions_get(self, identifier):
+        """ Get Url to retrieve a model run object that is associated with an
+        experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique model run object identifier
+
+        Returns
+        -------
+        string
+            Retrieve model run URL
+        """
+        return self.predictions_list(identifier) + '/' + identifier.keys[-1]
+
+    def predictions_list(self, identifier):
+        """ Get Url to get a listing of all a model run objects that are
+        associated with an experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique model run object identifier
+
+        Returns
+        -------
+        string
+            List model runs URL
+        """
+        return self.get(identifier) + '/' + self.class_identifiers['prediction']
+
+    def predictions_upsert_property(self, identifier):
+        """ Get Url to upsert property of a model run object that is associated
+        with an experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique model run object identifier
+
+        Returns
+        -------
+        string
+            Upsert data object property URL
+        """
+        return self.predictions_get(identifier) + '/properties'
 
 
 class UrlFactory:
@@ -434,11 +529,19 @@ class HATEOASReferenceFactory:
             links['upsert'] = self.urls.subjects.upsert_property(db_obj.identifier)
         elif db_obj.is_experiment:
             links['delete'] = self.urls.experiments.delete(db_obj.identifier)
-            links['upload.fmri'] = self.urls.experiments.fmris_upload(db_obj.identifier)
+            links['fmri.upload'] = self.urls.experiments.fmris_upload(db_obj.identifier)
+            links['predictions.create'] = self.urls.experiments.predictions_create(db_obj.identifier)
+            links['predictions.list'] = self.urls.experiments.predictions_list(db_obj.identifier)
             links['upsert'] = self.urls.experiments.upsert_property(db_obj.identifier)
         elif db_obj.is_fmri_data:
             links['download'] = self.urls.experiments.fmris_download(db_obj.identifier)
             links['upsert'] = self.urls.experiments.fmris_upsert_property(db_obj.identifier)
+        elif db_obj.is_prediction:
+            # Only include download link if model run finished successfully
+            if db_obj.is_success:
+                links['download'] = self.urls.experiments.predictions_download(db_obj.identifier)
+            links['delete'] = self.urls.experiments.predictions_delete(db_obj.identifier)
+            links['upsert'] = self.urls.experiments.predictions_upsert_property(db_obj.identifier)
         elif db_obj.is_image:
             links['delete'] = self.urls.images.delete(db_obj.identifier)
             links['download'] = self.urls.images.download(db_obj.identifier)
@@ -474,6 +577,8 @@ class HATEOASReferenceFactory:
             ref = self.urls.experiments.get(db_obj.identifier)
         elif db_obj.is_fmri_data:
             ref = self.urls.experiments.fmris_get(db_obj.identifier)
+        elif db_obj.is_prediction:
+            ref = self.urls.experiments.predictions_get(db_obj.identifier)
         elif db_obj.is_image:
             ref = self.urls.images.get(db_obj.identifier)
         elif db_obj.is_image_group:
@@ -494,13 +599,14 @@ class HATEOASReferenceFactory:
         """
         return self.to_references({
             'self' : self.urls.base_url,
-            'list.experiments' : self.urls.experiments.list(),
-            'list.subjects' : self.urls.subjects.list(),
-            'list.images' : self.urls.images.list(),
-            'list.imageGroups' : self.urls.image_groups.list(),
-            'create.experiments' : self.urls.experiments.create(),
-            'upload.subjects' : self.urls.subjects.create(),
-            'upload.images' : self.urls.images.create()
+            'experiments.create' : self.urls.experiments.create(),
+            'experiments.list' : self.urls.experiments.list(),
+            'subjects.list' : self.urls.subjects.list(),
+            'subjects.upload' : self.urls.subjects.create(),
+            'images.list' : self.urls.images.list(),
+            'images.upload' : self.urls.images.create(),
+            'imageGroups.list' : self.urls.image_groups.list(),
+            'imageGroups.upload' : self.urls.images.create()
         })
 
     def to_references(self, dictionary):

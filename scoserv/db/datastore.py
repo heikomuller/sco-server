@@ -7,8 +7,9 @@ results of model runs.
 
 from abc import abstractmethod
 import datetime
-import pymongo
 import os
+import pymongo
+import re
 
 
 # ------------------------------------------------------------------------------
@@ -24,12 +25,14 @@ object type here."""
 OBJ_EXPERIMENT = 'EXPERIMENT'
 # Functional Data object
 OBJ_FMRI_DATA = 'FMRI'
-# Subject anatomy object
-OBJ_SUBJECT = 'SUBJECT'
 # Single Image Object
 OBJ_IMAGE = 'IMAGE'
 # Collection of images
 OBJ_IMAGEGROUP = 'IMG_GROUP'
+# Model run prediction output
+OBJ_PREDICTION = 'PREDICTION'
+# Subject anatomy object
+OBJ_SUBJECT = 'SUBJECT'
 
 # Set of valid object types.
 OBJECT_TYPES = set([
@@ -37,6 +40,7 @@ OBJECT_TYPES = set([
     OBJ_FMRI_DATA,
     OBJ_IMAGE,
     OBJ_IMAGEGROUP,
+    OBJ_PREDICTION,
     OBJ_SUBJECT
 ])
 
@@ -94,20 +98,35 @@ class ObjectId(object):
             self.keys = keys
         else:
             raise ValueError('invalid type for object keys')
+        # Ensure that none of the key values contains the delimiter that is used
+        # to build the identifier representation
+        for key in self.keys:
+            if self.delimiter in key:
+                raise ValueError('invaid key value: ' + key)
 
     def __repr__(self):
         """String representation for list of keys. This is a concatenation of
         elements in the list of keys.
-
-        Currently, the concatenation delimiter is '#'
 
         Returns
         -------
         string
             Global unique string identifier
         """
-        return '#'.join(self.keys)
+        return self.delimiter.join(self.keys)
 
+    @property
+    def delimiter(self):
+        """Deliminator used when concatenating identifier components to build
+        unique identifier representation. Currently, the concatenation delimiter
+        is '#'
+
+        Returns
+        -------
+        string
+            Concatenation delimiter used for identifier representation
+        """
+        return '#'
 
 class DBObject(object):
     """Database Object - Base implementation of database objects. Contains the
@@ -226,6 +245,17 @@ class DBObject(object):
         return self.type == OBJ_IMAGEGROUP
 
     @property
+    def is_prediction(self):
+        """Flag indicating whether this object represents an prediction object.
+
+        Returns
+        -------
+        Boolean
+            True, if object is of type OBJ_PREDICTION
+        """
+        return self.type == OBJ_PREDICTION
+
+    @property
     def is_subject(self):
         """Flag indicating whether this object represents an anatomy subject.
 
@@ -279,268 +309,10 @@ class ObjectListing(object):
 
 # ------------------------------------------------------------------------------
 #
-# Typed Properties
-#
-# ------------------------------------------------------------------------------
-
-class Attribute(object):
-    """A typed attribute is an instantiation of an object's property that has a
-    value of particular type. The expected type of the property is defined in
-    the attribute definition.
-
-    Typed attributes are used to represent properties of database objects (e.g.,
-    image groups) that require a certain type (e.g., float value) with given
-    constraints.
-
-    Attributes
-    ----------
-    name : string
-        Property name
-
-    value : any
-        Associated value for the property. Can be of any type
-    """
-    def __init__(self, name, value):
-        """Initialize the type property instance by passing arguments for name
-        and value.
-
-        Parameters
-        ----------
-        name : string
-            Property name
-
-        value : any
-            Associated value for the property. Can be of any type
-        """
-        self.name = name
-        self.value = value
-
-
-class AttributeDefinition(object):
-    """Definition of a typed object property. Each property has a (unique) name
-    and attribute type from a set of predefined data types. The attribute
-    definition also includes an optional default value. The type of the value
-    is dependen on the attribute type.
-
-    Attributes
-    ----------
-    name : string
-        Attribute name
-    attrtype : datastore.AttributeType
-        Attribute type from controlled set of data types
-    default_value : any, optional
-        Default value for instance of this type
-    """
-    def __init__(self, name, attrtype, default_value=None):
-        """Initialize the object.
-
-        Parameters
-        ----------
-        name : string
-            Attribute name
-        attrtype : datastore.AttributeType
-            Attribute type from controlled set of data types
-        default_value : any, optional
-            Default value for instance of this type
-        """
-        # If the default value is given make sure that it is valid for given
-        # attribute type. Otherwise, throw ValueError
-        if not default_value is None:
-            if not attrtype.validate(default_value):
-                raise ValueError('Default value is not of attribute type ' + attrtype.name)
-        self.name = name
-        self.type = attrtype
-        self.default_value = default_value
-
-    def validate(self, value):
-        """Validate whether a given variable value is of type represented by
-        the attribute type associated with this definition.
-
-        Parameters
-        ----------
-        value : any
-            Value to be tested
-
-        Returns
-        -------
-        Boolean
-            True, if value is of valid type
-        """
-        return self.type.validate(value)
-
-
-# ------------------------------------------------------------------------------
-# Constants for type names
-# ------------------------------------------------------------------------------
-
-ATTRTYPE_ARRAY = 'array'
-ATTRTYPE_FLOAT = 'float'
-ATTRTYPE_INTEGER = 'int'
-
-class AttributeType(object):
-    """Object representing the type of an attrbute. Types can be simple, e.g.,
-    float and integer, or complex, e.g., array of n-tuples of a simple type.
-
-    Each attribute type implements a method to validate that a given variable
-    holds a value that is a valid instance of the type.
-
-    Attributes
-    ----------
-    name : string
-        Text representation of type name
-    """
-    def __init__(self, name):
-        """Initialize the type name. the name is used to uniquely identify the
-        type. For each implementation of this class a is_ofType() method
-        should be added to the class definition.
-
-        Parameters
-        ----------
-        name = string
-            Type name
-        """
-        self.name = name
-
-    @property
-    def is_array(self):
-        """Flag indicating whether this is an instance of type ARRAY.
-
-        Returns
-        -------
-        Boolean
-            True, if name equals ATTRTYPE_ARRAY
-        """
-        return self.name == ATTRTYPE_ARRAY
-
-    @property
-    def is_float(self):
-        """Flag indicating whether this is an instance of type FLOAT.
-
-        Returns
-        -------
-        Boolean
-            True, if name equals ATTRTYPE_FLOAT
-        """
-        return self.name == ATTRTYPE_FLOAT
-
-    @property
-    def is_int(self):
-        """Flag indicating whether this is an instance of type INTEGER.
-
-        Returns
-        -------
-        Boolean
-            True, if name equals ATTRTYPE_INTEGER
-        """
-        return self.name == ATTRTYPE_INTEGER
-
-    @abstractmethod
-    def validate(self, value):
-        """Validate whether a given variable value is of type represented by
-        this attribute type instance.
-
-        Parameters
-        ----------
-        value : any
-            Value to be tested
-
-        Returns
-        -------
-        Boolean
-            True, if value is of valid type
-        """
-        pass
-
-
-class ArrayType(AttributeType):
-    """Specification of array attribute data type. This type represents arrays
-    of n-tuples all having the same value type. It is expected, that the value
-    type is a 'simple' attribute type, i.e., float or integer (at the moment).
-
-    Attributes
-    ----------
-    value_type : AttributeType
-        Type of values in each n-tuple
-    """
-    def __init__(self, value_type):
-        """Initialize object by setting the (super) class name attribute to
-        ATTRTYPE_ARRAY.
-
-        Parameters
-        ----------
-        value_type : AttributeType
-            Type of values in each n-tuple
-        """
-        super(ArrayType, self).__init__(ATTRTYPE_ARRAY)
-        self.value_type = value_type
-
-    def validate(self, value):
-        """Override AttributeType.validate. Check if the given value is an
-        array of n-tuples and that all values within tuples are of the type
-        that is given by value_type.
-
-        It is also ensured that all n-tuples are of same length n. Tuple length
-        is not a fixed argument for array types to support the use case where
-        list are either 1-tuples or 2-tupes as for stimulus_gamma in image
-        groups.
-        """
-        # Make sure that the value is a list
-        if not isinstance(value, list):
-            return False
-        # Make sure that all elements in the list are lists or tuples of
-        # length tuple_length and each of the values if of the specified
-        # attribute type. Also ensure that all tuples are of the same length
-        # (which is unknown at the start -> common_length)
-        common_length = -1
-        for t in value:
-            if not isinstance(t, list) and not isinstance(t, tuple):
-                return False
-            if common_length == -1:
-                common_length = len(t)
-            elif len(t) != common_length:
-                return False
-            for v in t:
-                if not self.value_type.validate(v):
-                    return False
-        # Return True if all tests where passed successfully
-        return True
-
-
-class FloatType(AttributeType):
-    """Specification of float attribute data type."""
-    def __init__(self):
-        """Initialize object by setting the (super) class name attribute to
-        ATTRTYPE_FLOAT.
-        """
-        super(FloatType, self).__init__(ATTRTYPE_FLOAT)
-
-    def validate(self, value):
-        """Override AttributeType.validate. Check if the given value is an
-        instance of type float.
-        """
-        return isinstance(value, float) or isinstance(value, int)
-
-
-class IntegerType(AttributeType):
-    """Specification of integer attribute data type."""
-    def __init__(self):
-        """Initialize object by setting the (super) class name attribute to
-        ATTRTYPE_INTEGER.
-        """
-        super(IntegerType, self).__init__(ATTRTYPE_INTEGER)
-
-    def validate(self, value):
-        """Override AttributeType.validate. Check if the given value is an
-        instance of type int.
-        """
-        return isinstance(value, int)
-
-
-# ------------------------------------------------------------------------------
-#
 # Object Stores
 #
 # ------------------------------------------------------------------------------
+
 class ObjectStore(object):
     """Object Store - Base implementation of a storage manager for database
     objects. Each object store should implement the following interface methods:
@@ -551,8 +323,8 @@ class ObjectStore(object):
     replace_object(object::(Subclass of)DBObject)
     update_object_property(identifier::string, key::string, value::string)
 
-    Attributes:
-    -----------
+    Attributes
+    ----------
     immutable_properties : List(string)
         List the names if immutage properties
     mandatory_properties : List(string)
@@ -639,7 +411,7 @@ class ObjectStore(object):
         pass
 
     @abstractmethod
-    def list_objects(self, limit=-1, offset=-1):
+    def list_objects(self, limit=-1, offset=-1, parent_id=None):
         """Retrieve list of all objects from data store.
 
         Parameters
@@ -648,6 +420,8 @@ class ObjectStore(object):
             Limit number of results in returned object listing
         offset : int
             Set offset in list (order as defined by object store)
+        parent_id : datastore.ObjectId, optional
+            Parent object identifier for weak entities.
 
         Returns
         -------
@@ -848,7 +622,7 @@ class MongoDBStore(ObjectStore):
         obj['active'] = True
         self.collection.insert_one(obj)
 
-    def list_objects(self, query=None, limit=-1, offset=-1):
+    def list_objects(self, query=None, limit=-1, offset=-1, parent_id=None):
         """List of all objects in the database. Optinal parameter limit and
         offset for pagination. A dictionary of key,value-pairs can be given as
         query for object properties.
@@ -861,6 +635,9 @@ class MongoDBStore(ObjectStore):
             Limit number of items in the result set
         offset : int
             Set offset in list (order as defined by object store)
+        parent_id : datastore.ObjectId, optional
+            Parent object identifier for weak entities.
+
         Returns
         -------
         ObjectListing
@@ -871,6 +648,10 @@ class MongoDBStore(ObjectStore):
         if not query is None:
             for key in query:
                 doc['properties.' + key] = query[key]
+        # Add a regular expression to the query that filters based on _id prefix
+        # defined by given parent identifier (if given).
+        if not parent_id is None:
+            doc['_id'] = re.compile(repr(parent_id) + parent_id.delimiter)
         # Iterate over all objects in the MongoDB collection and add them to
         # the result
         coll = self.collection.find(doc).sort([('timestamp', pymongo.DESCENDING)])
@@ -936,7 +717,7 @@ class DefaultObjectStore(MongoDBStore):
     directory : string
         Base directory on local disk for object files.
     """
-    def __init__(self, mongo_collection, base_directory, properties):
+    def __init__(self, mongo_collection, base_directory, properties=[]):
         """Initialize the MongoDB collection and base directory where to store
         object files. Set immutable and mandatory properties.
 

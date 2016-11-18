@@ -1,6 +1,5 @@
-"""Experiments - Collection of methods to experiment configurations for SCO
-model predictions. Contains objects to represent and manipulate experiment
-objects.
+"""Experiments - Collection of methods to manage and manipulate experiment
+definitions for SCO model predictions.
 """
 
 import datetime
@@ -113,7 +112,13 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         # Create the initial set of properties for the new experiement object.
         properties = {datastore.PROPERTY_NAME: name}
         # Create object handle and store it in database before returning it
-        obj = ExperimentHandle(identifier, properties, subject, images, fmri_data=fmri_data)
+        obj = ExperimentHandle(
+            identifier,
+            properties,
+            subject,
+            images,
+            fmri_data=fmri_data
+        )
         self.insert_object(obj)
         return obj
 

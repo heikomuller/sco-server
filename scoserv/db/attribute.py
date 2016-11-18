@@ -1,0 +1,355 @@
+"""Typed attributes - Collection of classes and helper methods to handle typed
+attributes and their constraints.
+
+Typed attributes support key-value pairs where values are not simply string but
+of different type, e.g., float, int, array of floats. Attribute definitions are
+used to define such attrbutes.
+
+Use of these classes is intended for typed value lists, i.e., image group
+options and model run arguments.
+"""
+
+from abc import abstractmethod
+
+
+# ------------------------------------------------------------------------------
+#
+# Constants for type names
+#
+# ------------------------------------------------------------------------------
+
+ATTRTYPE_ARRAY = 'array'
+ATTRTYPE_FLOAT = 'float'
+ATTRTYPE_INTEGER = 'int'
+
+
+# ------------------------------------------------------------------------------
+#
+# Attribute definitions and instances
+#
+# ------------------------------------------------------------------------------
+
+class Attribute(object):
+    """A typed attribute is an instantiation of an object's property that has a
+    value of particular type. The expected type of the property is defined in
+    the attribute definition.
+
+    Typed attributes are used to represent properties of database objects (e.g.,
+    image groups) that require a certain type (e.g., float value) with given
+    constraints.
+
+    Attributes
+    ----------
+    name : string
+        Property name
+
+    value : any
+        Associated value for the property. Can be of any type
+    """
+    def __init__(self, name, value):
+        """Initialize the type property instance by passing arguments for name
+        and value.
+
+        Parameters
+        ----------
+        name : string
+            Property name
+
+        value : any
+            Associated value for the property. Can be of any type
+        """
+        self.name = name
+        self.value = value
+
+
+class AttributeDefinition(object):
+    """Definition of a typed object property. Each property has a (unique) name
+    and attribute type from a set of predefined data types. The attribute
+    definition also includes an optional default value. The type of the value
+    is dependen on the attribute type.
+
+    Attributes
+    ----------
+    name : string
+        Attribute name
+    attrtype : datastore.AttributeType
+        Attribute type from controlled set of data types
+    default_value : any, optional
+        Default value for instance of this type
+    """
+    def __init__(self, name, attrtype, default_value=None):
+        """Initialize the object.
+
+        Parameters
+        ----------
+        name : string
+            Attribute name
+        attrtype : datastore.AttributeType
+            Attribute type from controlled set of data types
+        default_value : any, optional
+            Default value for instance of this type
+        """
+        # If the default value is given make sure that it is valid for given
+        # attribute type. Otherwise, throw ValueError
+        if not default_value is None:
+            if not attrtype.validate(default_value):
+                raise ValueError('Default value is not of attribute type ' + attrtype.name)
+        self.name = name
+        self.type = attrtype
+        self.default_value = default_value
+
+    def validate(self, value):
+        """Validate whether a given variable value is of type represented by
+        the attribute type associated with this definition.
+
+        Parameters
+        ----------
+        value : any
+            Value to be tested
+
+        Returns
+        -------
+        Boolean
+            True, if value is of valid type
+        """
+        return self.type.validate(value)
+
+
+class AttributeType(object):
+    """Object representing the type of an attrbute. Types can be simple, e.g.,
+    float and integer, or complex, e.g., array of n-tuples of a simple type.
+
+    Each attribute type implements a method to validate that a given variable
+    holds a value that is a valid instance of the type.
+
+    Attributes
+    ----------
+    name : string
+        Text representation of type name
+    """
+    def __init__(self, name):
+        """Initialize the type name. the name is used to uniquely identify the
+        type. For each implementation of this class a is_ofType() method
+        should be added to the class definition.
+
+        Parameters
+        ----------
+        name = string
+            Type name
+        """
+        self.name = name
+
+    @property
+    def is_array(self):
+        """Flag indicating whether this is an instance of type ARRAY.
+
+        Returns
+        -------
+        Boolean
+            True, if name equals ATTRTYPE_ARRAY
+        """
+        return self.name == ATTRTYPE_ARRAY
+
+    @property
+    def is_float(self):
+        """Flag indicating whether this is an instance of type FLOAT.
+
+        Returns
+        -------
+        Boolean
+            True, if name equals ATTRTYPE_FLOAT
+        """
+        return self.name == ATTRTYPE_FLOAT
+
+    @property
+    def is_int(self):
+        """Flag indicating whether this is an instance of type INTEGER.
+
+        Returns
+        -------
+        Boolean
+            True, if name equals ATTRTYPE_INTEGER
+        """
+        return self.name == ATTRTYPE_INTEGER
+
+    @abstractmethod
+    def validate(self, value):
+        """Validate whether a given variable value is of type represented by
+        this attribute type instance.
+
+        Parameters
+        ----------
+        value : any
+            Value to be tested
+
+        Returns
+        -------
+        Boolean
+            True, if value is of valid type
+        """
+        pass
+
+
+class ArrayType(AttributeType):
+    """Specification of array attribute data type. This type represents arrays
+    of n-tuples all having the same value type. It is expected, that the value
+    type is a 'simple' attribute type, i.e., float or integer (at the moment).
+
+    Attributes
+    ----------
+    value_type : AttributeType
+        Type of values in each n-tuple
+    """
+    def __init__(self, value_type):
+        """Initialize object by setting the (super) class name attribute to
+        ATTRTYPE_ARRAY.
+
+        Parameters
+        ----------
+        value_type : AttributeType
+            Type of values in each n-tuple
+        """
+        super(ArrayType, self).__init__(ATTRTYPE_ARRAY)
+        self.value_type = value_type
+
+    def validate(self, value):
+        """Override AttributeType.validate. Check if the given value is an
+        array of n-tuples and that all values within tuples are of the type
+        that is given by value_type.
+
+        It is also ensured that all n-tuples are of same length n. Tuple length
+        is not a fixed argument for array types to support the use case where
+        list are either 1-tuples or 2-tupes as for stimulus_gamma in image
+        groups.
+        """
+        # Make sure that the value is a list
+        if not isinstance(value, list):
+            return False
+        # Make sure that all elements in the list are lists or tuples of
+        # length tuple_length and each of the values if of the specified
+        # attribute type. Also ensure that all tuples are of the same length
+        # (which is unknown at the start -> common_length)
+        common_length = -1
+        for t in value:
+            if not isinstance(t, list) and not isinstance(t, tuple):
+                return False
+            if common_length == -1:
+                common_length = len(t)
+            elif len(t) != common_length:
+                return False
+            for v in t:
+                if not self.value_type.validate(v):
+                    return False
+        # Return True if all tests where passed successfully
+        return True
+
+
+class FloatType(AttributeType):
+    """Specification of float attribute data type."""
+    def __init__(self):
+        """Initialize object by setting the (super) class name attribute to
+        ATTRTYPE_FLOAT.
+        """
+        super(FloatType, self).__init__(ATTRTYPE_FLOAT)
+
+    def validate(self, value):
+        """Override AttributeType.validate. Check if the given value is an
+        instance of type float.
+        """
+        return isinstance(value, float) or isinstance(value, int)
+
+
+class IntegerType(AttributeType):
+    """Specification of integer attribute data type."""
+    def __init__(self):
+        """Initialize object by setting the (super) class name attribute to
+        ATTRTYPE_INTEGER.
+        """
+        super(IntegerType, self).__init__(ATTRTYPE_INTEGER)
+
+    def validate(self, value):
+        """Override AttributeType.validate. Check if the given value is an
+        instance of type int.
+        """
+        return isinstance(value, int)
+
+
+# ------------------------------------------------------------------------------
+#
+# Helper methods
+#
+# ------------------------------------------------------------------------------
+
+def get_default_attributes(attr_definitions):
+    """Generate a dictionary of attribute values from a set of attribute
+    definitions using default values.
+
+    The result will include an attribute for each definition that has a default
+    value defined.
+
+    Parameters
+    ----------
+    attr_definitions : dict(AttributeDefinition)
+        Dictionary of attribute definitions keyed by their name
+
+    Returns
+    -------
+    dict(Attribute)
+        List of attribute instance for definitions that have a default value
+    """
+    attributes = {}
+    for key in attr_definitions:
+        attr_def = attr_definitions[key]
+        # Create  attribute instance with definitions default value if defined
+        if not attr_def.default_value is None:
+            attributes[attr_def.name] = Attribute(
+                attr_def.name,
+                attr_def.default_value
+            )
+    return attributes
+
+
+def attributes_from_json(document):
+    """Convert a Json representation of a set of attribute instances into a
+    dictionary.
+
+    Parameters
+    ----------
+    document : Json object
+        Json serialization of attribute instances
+
+    Returns
+    -------
+    dict(Attribute)
+        Dictionary of attribute instance objects keyed by their name
+    """
+    attributes = dict()
+    for attr in document:
+        attributes[attr['name']] = Attribute(
+            attr['name'],
+            attr['value']
+        )
+    return attributes
+
+
+def attributes_to_json(attributes):
+    """Transform a dictionary of attribute instances into a list of Json
+    objects, i.e., list of key-value pairs.
+
+    Parameters
+    ----------
+    attributes : dict(Attribute)
+        Dictionary of attribute instances
+
+    Returns
+    -------
+    list(dict(name:..., value:...))
+        List of key-value pairs.
+    """
+    result = []
+    for key in attributes:
+        result.append({
+            'name' : key,
+            'value' : attributes[key].value
+        })
+    return result

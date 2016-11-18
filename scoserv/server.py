@@ -183,8 +183,8 @@ def upsert_experiment_property(experiment_id):
     """Upsert experiment property (POST) - Upsert a property of an experiment
     object in the database.
     """
-    # Upsert the object property. If response code indicates whether the
-    # property was created, updated, or deleted. Method throws InvalidRequest
+    # Upsert the object property. The response code indicates whether the
+    # property was created, updated, or deleted. Method raises InvalidRequest
     # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(
         request,
@@ -239,8 +239,8 @@ def upsert_fmri_property(experiment_id, fmri_id):
     """
     # The object identifier is a tuple of experiment and fmri identifier
     object_id = (experiment_id, fmri_id)
-    # Upsert the object property. If response code indicates whether the
-    # property was created, updated, or deleted. Method throws InvalidRequest
+    # Upsert the object property. The response code indicates whether the
+    # property was created, updated, or deleted. Method raises InvalidRequest
     # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(
         request,
@@ -258,13 +258,10 @@ def download_fmri(experiment_id, fmri_id):
     # Get download information for given object. Method raises ResourceNotFound
     # exception if object does not exists or does not have any downloadable
     # representation.
-    print 'DOWNLOAD'
     directory, filename, mime_type = sco.get_download(
         datastore.ObjectId([experiment_id, fmri_id]),
         datastore.OBJ_FMRI_DATA
     )
-    print directory
-    print filename
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -279,6 +276,110 @@ def download_fmri(experiment_id, fmri_id):
 # Prediction Data
 # ------------------------------------------------------------------------------
 
+@app.route('/experiments/<string:experiment_id>/predictions', methods=['GET'])
+def list_experiment_predictions(experiment_id):
+    """List predictions (GET) - Get a list of all model runs and their
+    prediction results that are associated with a given experiment.
+    """
+    # Method raises exception if request argument values are not integers
+    return jsonify(list_objects(
+        request,
+        datastore.OBJ_PREDICTION,
+        parent_id=datastore.ObjectId(experiment_id)
+    ))
+
+
+@app.route('/experiments/<string:experiment_id>/predictions', methods=['POST'])
+def create_experiment_prediction(experiment_id):
+    """Create model run (POST) - Start a new model run for an experiment using a
+    user provided set of arguments.
+    """
+    # Make sure that the post request has a json part
+    if not request.json:
+        raise exceptions.InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    # Make sure that all required keys are present in the given Json object
+    for key in ['name', 'arguments']:
+        if not key in json_obj:
+            raise exceptions.InvalidRequest('missing element in Json body: ' + key)
+    # Call create method of API to get a new model run object handle.
+    prediction = sco.create_prediction(
+        datastore.ObjectId(experiment_id),
+        json_obj['name'],
+        get_attributes(json_obj['arguments'])
+    )
+    # Return result including list of references for new model run.
+    return jsonify({
+        'result' : 'SUCCESS',
+        'links': sco.refs.object_references(prediction)
+    }), 201
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>', methods=['GET'])
+def get_experiment_prediction(experiment_id, prediction_id):
+    """Get prediction (GET) - Retrieve a model run and its prediction result
+    for a given experiment.
+    """
+    # Return Json serialization of object. The API throws ResourceNotFound
+    # excpetion if the given object identifier does not reference an existing
+    # image object.
+    return jsonify(sco.get_object(
+        datastore.ObjectId([experiment_id, prediction_id]),
+        datastore.OBJ_PREDICTION)
+    )
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>', methods=['DELETE'])
+def delete_experiment_prediction(experiment_id, prediction_id):
+    """Delete prediction (DELETE) - Delete model run and potential prediction
+    results associated with a given experiment.
+    """
+    # Delete model run with given identifier and return 204. The API will throw
+    # ResourceNotFound exception if the given identifier does not reference an
+    # existing model run in the database.
+    sco.delete_object(
+        datastore.ObjectId([experiment_id, prediction_id]),
+        datastore.OBJ_PREDICTION
+    )
+    return '', 204
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/properties', methods=['POST'])
+def upsert_experiment_prediction_property(experiment_id, prediction_id):
+    """Upsert prediction (POST) - Upsert a property of a model run object
+    associated with a given experiment.
+    """
+    # Upsert the object property. The response code indicates whether the
+    # property was created, updated, or deleted. Method raises InvalidRequest
+    # or ResourceNotFound exceptions if necessary.
+    code = upsert_object_property(
+        request,
+        datastore.ObjectId([experiment_id, prediction_id]),
+        datastore.OBJ_PREDICTION
+    )
+    return '', code
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/data')
+def download_experiment_prediction(experiment_id, prediction_id):
+    """Download prediction (GET) - Download prediction result generated by a
+    successfully finished model run that is associated with a given experiment.
+    """
+    # Get download information for given object. Method raises ResourceNotFound
+    # exception if object does not exists or does not have any downloadable
+    # representation.
+    directory, filename, mime_type = sco.get_download(
+        datastore.ObjectId([experiment_id, prediction_id]),
+        datastore.OBJ_PREDICTION
+    )
+    # Send file in the object's upload folder
+    return send_from_directory(
+        directory,
+        filename,
+        mimetype=mime_type,
+        as_attachment=False,
+        attachment_filename=filename
+    )
 
 # ------------------------------------------------------------------------------
 # Images
@@ -308,8 +409,8 @@ def upsert_image_property(image_id):
     """Upsert image object (POST) - Upsert a property of an image object in the
     database.
     """
-    # Upsert the object property. If response code indicates whether the
-    # property was created, updated, or deleted. Method throws InvalidRequest
+    # Upsert the object property. The response code indicates whether the
+    # property was created, updated, or deleted. Method raises InvalidRequest
     # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(
         request,
@@ -440,8 +541,8 @@ def upsert_image_group_property(image_group_id):
     """Upsert image object (POST) - Upsert a property of an image group in the
     database.
     """
-    # Upsert the object property. If response code indicates whether the
-    # property was created, updated, or deleted. Method throws InvalidRequest
+    # Upsert the object property. The response code indicates whether the
+    # property was created, updated, or deleted. Method raises InvalidRequest
     # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(
         request,
@@ -525,8 +626,8 @@ def upsert_subject_property(subject_id):
     """Upsert subject object (POST) - Upsert a property of a brain anatomy MRI
     object in the database.
     """
-    # Upsert the object property. If response code indicates whether the
-    # property was created, updated, or deleted. Method throws InvalidRequest
+    # Upsert the object property. The response code indicates whether the
+    # property was created, updated, or deleted. Method raises InvalidRequest
     # or ResourceNotFound exceptions if necessary.
     code = upsert_object_property(
         request,
@@ -585,8 +686,8 @@ def get_attributes(json_array):
 
     Returns
     -------
-    List(TypedPropertyInstance)
-        List of typed property instances
+    List(Attribute)
+        List of typed attribute instances
     """
     result = []
     # Make sure the given array is a list
@@ -632,7 +733,7 @@ def get_upload_file(request):
     return file
 
 
-def list_objects(request, object_type):
+def list_objects(request, object_type, parent_id=None):
     """Generalized method to return a list of database objects. Ensures that all
     arguments are in expected format and the calls the respective API method.
 
@@ -642,6 +743,8 @@ def list_objects(request, object_type):
         Flask request object
     object_type : string
         String representation of object type
+    parent_id : datastore.ObjectId, optional
+        Parent object identifier for weak entities.
 
     Returns
     -------
@@ -661,7 +764,12 @@ def list_objects(request, object_type):
     # default, the object name is always included.
     prop_set = request.args[hateoas.QPARA_PROPERTIES].split(',') if hateoas.QPARA_PROPERTIES in request.args else None
     # Call list_object method of API with request arguments
-    return sco.list_objects(object_type, offset=offset, limit=limit, prop_set=prop_set)
+    return sco.list_objects(
+        object_type,
+        offset=offset,
+        limit=limit,
+        prop_set=prop_set,
+        parent_id=parent_id)
 
 
 def upsert_object_property(request, object_id, object_type):

@@ -305,7 +305,7 @@ paths:
                 200:
                     description: List of predictions
                     schema:
-                        $ref: "#/definitions/DBObjectListing"
+                        $ref: "#/definitions/PredicateListing"
                 400:
                     description: Invalid arguments
                 404:
@@ -330,8 +330,11 @@ paths:
                   schema:
                       type: object
                       required:
+                          - name
                           - arguments
                       properties:
+                          name:
+                              type: string
                           arguments:
                               type: array
                               items:
@@ -1060,16 +1063,46 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
-    PredictionHandle:
+    PredictionDescriptor:
         allOf:
             - $ref: '#/definitions/DBObjectHandle'
+            - properties:
+                status:
+                    type: string
+    PredictionHandle:
+        allOf:
+            - $ref: '#/definitions/PredictionDescriptor'
             - properties:
                 arguments:
                     type: array
                     items:
                         $ref: "#/definitions/Attribute"
-                status:
+    PredictionListing:
+        type: object
+        required:
+            - offset
+            - count
+            - items
+            - links
+        properties:
+            properties:
+                type: array
+                items:
                     type: string
+            offset:
+                type: integer
+            limit:
+                type: integer
+            count:
+                type: integer
+            items:
+                type: array
+                items:
+                    $ref: "#/definitions/PredictionDescriptor"
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
     Reference:
         type: object
         required:

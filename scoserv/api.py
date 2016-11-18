@@ -12,13 +12,15 @@ import tempfile
 from pymongo import MongoClient
 from werkzeug.utils import secure_filename
 
-import reqexcpt as exceptions
+import reqexcpt as excpt
 import hateoas
 import utils
+import db.attribute as attribute
 import db.datastore as datastore
 import db.experiment as experiement
 import db.funcdata as funcdata
 import db.images as images
+import db.prediction as prediction
 import db.subject as subject
 
 
@@ -75,25 +77,28 @@ class DataServer:
         db = mongo_client.scoserv
         # Ensure that varios data sub-folders exist
         self.data_dir = utils.create_dir(data_dir)
-        subjects_dir = utils.create_dir(os.path.join(self.data_dir, 'subjects'))
+        fmridata_dir = utils.create_dir(os.path.join(self.data_dir, 'fmris'))
         images_dir = utils.create_dir(os.path.join(self.data_dir, 'images'))
         image_files_dir = utils.create_dir(os.path.join(images_dir, 'files'))
         image_groups_dir = utils.create_dir(os.path.join(images_dir, 'groups'))
-        fmridata_dir = utils.create_dir(os.path.join(self.data_dir, 'fmris'))
+        predictions_dir = utils.create_dir(os.path.join(self.data_dir, 'predictions'))
+        subjects_dir = utils.create_dir(os.path.join(self.data_dir, 'subjects'))
         # Create object stores and maintain a dictionary for access.
         self.stores = {
             datastore.OBJ_EXPERIMENT : experiement.DefaultExperimentManager(db.experiments),
             datastore.OBJ_FMRI_DATA : funcdata.DefaultFMRIDataManager(db.fmris, fmridata_dir),
             datastore.OBJ_IMAGE : images.DefaultImageManager(db.images, image_files_dir),
             datastore.OBJ_IMAGEGROUP : images.DefaultImageGroupManager(db.imagegroups, image_groups_dir),
+            datastore.OBJ_PREDICTION : prediction.DefaultPredictionManager(db.predictions, predictions_dir),
             datastore.OBJ_SUBJECT : subject.DefaultSubjectManager(db.subjects, subjects_dir)
         }
         # Maintain dictionary of listing URL's for different object types
         self.object_urls = {
-            datastore.OBJ_EXPERIMENT : urls.experiments.list(),
-            datastore.OBJ_IMAGE : urls.images.list(),
-            datastore.OBJ_IMAGEGROUP : urls.image_groups.list(),
-            datastore.OBJ_SUBJECT : urls.subjects.list()
+            datastore.OBJ_EXPERIMENT : urls.experiments.list,
+            datastore.OBJ_IMAGE : urls.images.list,
+            datastore.OBJ_IMAGEGROUP : urls.image_groups.list,
+            datastore.OBJ_PREDICTION : urls.experiments.predictions_list,
+            datastore.OBJ_SUBJECT : urls.subjects.list
         }
 
     def create_experiment(self, name, subject_id, image_group_id):
@@ -118,10 +123,10 @@ class DataServer:
         """
         # Ensure that the subject identifier refers to an existing object.
         if not self.object_store(datastore.OBJ_SUBJECT).exists_object(subject_id):
-            raise exceptions.InvalidRequest('unknown subject reference: ' + subject_id)
+            raise excpt.InvalidRequest('unknown subject reference: ' + subject_id)
         # Ensure that the image group identifier refers to an existing object.
         if not self.object_store(datastore.OBJ_IMAGEGROUP).exists_object(image_group_id):
-            raise exceptions.InvalidRequest('unknown image group reference: ' + image_group_id)
+            raise excpt.InvalidRequest('unknown image group reference: ' + image_group_id)
         # Get object store for experiments.
         store = self.object_store(datastore.OBJ_EXPERIMENT)
         # Create new object in experiment store and return it
@@ -130,7 +135,36 @@ class DataServer:
             subject_id,
             image_group_id
         )
-        # Return object references
+
+    def create_prediction(self, experiment, name, arguments):
+        """Create a new model run with user-provided arguments for a given
+        experiment.
+
+        Parameters
+        ----------
+        experiment : datastore.ObjectId
+            Unique identifier of experiment object
+        name : string
+            User-provided name for the experiment
+        arguments : list(attribute.Attribute)
+            List of user-provided arguments (typed attribute instances) for the
+            model run
+
+        Returns
+        -------
+        PredictionHandle
+            handle for the new prediction object
+        """
+        # Call the prediction store's create_object method. Catch possible
+        # ValueError if argument set violates constraints.
+        try:
+            return self.object_store(datastore.OBJ_PREDICTION).create_object(
+                experiment,
+                name,
+                arguments
+            )
+        except ValueError as err:
+            raise excpt.InvalidRequest(str(err))
 
     def delete_object(self, object_id, object_type):
         """Delete object with given identifier of given type.
@@ -167,7 +201,7 @@ class DataServer:
                     )
             return db_obj
         else:
-            raise exceptions.ResourceNotFound(object_id, object_type)
+            raise excpt.ResourceNotFound(object_id, object_type=object_type)
 
     def get_download(self, object_id, object_type):
         """Get download information for object with given identifier of given
@@ -192,7 +226,7 @@ class DataServer:
         if not download is None:
             return download
         else:
-            raise exceptions.ResourceNotFound(object_id, object_type)
+            raise excpt.ResourceNotFound(object_id, object_type=object_type)
 
     def get_object(self, object_id, object_type):
         """Retrieve database object. Type specifies the object store
@@ -219,7 +253,7 @@ class DataServer:
         # not exists.
         db_obj = store.get_object(object_id)
         if db_obj is None:
-            raise exceptions.ResourceNotFound(object_id, object_type)
+            raise excpt.ResourceNotFound(object_id, object_type=object_type)
         # Construct the result item. The base serialization includes identifier,
         # object type, timestamp, name, and properties listing.
         # and add HATEOAS references.
@@ -281,9 +315,12 @@ class DataServer:
                     'name' : fmri.name,
                     'links' : self.refs.object_references(fmri)
                 }
+        elif db_obj.is_prediction:
+            # Add status information for model runs
+            item['state'] = db_obj.state
         return item
 
-    def list_objects(self, object_type, offset=-1, limit=-1, prop_set=None):
+    def list_objects(self, object_type, offset=-1, limit=-1, prop_set=None, parent_id=None):
         """Generalized method to return a list of database objects.
 
         Parameters
@@ -296,6 +333,8 @@ class DataServer:
             Limit number of items in result
         prop_set : List(string)
             List of object properties to be included for items in result
+        parent_id : datastore.ObjectId, optional
+            Parent object identifier for weak entities.
 
         Returns
         -------
@@ -303,10 +342,25 @@ class DataServer:
             Dictionary representing list of objects. Raises UnknownObjectType
             exception if object type is unknown.
         """
+        # If a parent identifier is given ensure that the parent exists. The
+        # type of the parent is derived from the type of the weak entity. there
+        # is currently no error being raised if the object type does not
+        # identify a weak entity
+        if not parent_id is None:
+            if object_type == datastore.OBJ_PREDICTION:
+                if not self.object_store(datastore.OBJ_EXPERIMENT).exists_object(parent_id):
+                    raise excpt.ResourceNotFound(
+                        parent_id,
+                        object_type=datastore.OBJ_EXPERIMENT
+                    )
         # Get ObjectStore for given object type.
         store = self.object_store(object_type)
         # Get the object listing
-        list_result = store.list_objects(offset=offset, limit=limit)
+        list_result = store.list_objects(
+            offset=offset,
+            limit=limit,
+            parent_id=parent_id
+        )
         # Build the result. This includes the item list, offset, limit, and
         # attributes as well as links for navigation
         result = {
@@ -327,6 +381,10 @@ class DataServer:
                 'name' : db_obj.name,
                 'links' : self.refs.object_references(db_obj)
             }
+            # Add status information for predictions
+            if object_type == datastore.OBJ_PREDICTION:
+                item['state'] = db_obj.state
+            # Filter properties if property filter set is given
             if prop_set is None:
                 item['properties'] = utils.to_list(db_obj.properties)
             else:
@@ -339,8 +397,12 @@ class DataServer:
         result['items'] = items
         # Attribute parameter
         attributes = ','.join(prop_set) if not prop_set is None else None
-        # Get base Url for given object type and pagination decorator
-        url = self.object_urls[object_type]
+        # Get base Url for given object type and pagination decorator. Pass
+        # parent identifier as argument if given
+        if not parent_id is None:
+            url = self.object_urls[object_type](parent_id)
+        else:
+            url = self.object_urls[object_type]()
         pages = hateoas.PaginationDecorator(url, offset, limit, list_result.total_count, attributes)
         # Add navigational links first, last, prov, and next
         links = {
@@ -375,7 +437,7 @@ class DataServer:
         """
         store = self.stores[object_type]
         if store is None:
-            raise exceptions.UnknownObjectType(object_type)
+            raise excpt.UnknownObjectType(object_type)
         return store
 
     def upload_experiment_fmri(self, object_id, file):
@@ -401,9 +463,9 @@ class DataServer:
         # object does not exist
         experiment = store.get_object(object_id)
         if experiment is None:
-            raise exceptions.ResourceNotFound(
+            raise excpt.ResourceNotFound(
                 object_id,
-                datastore.OBJ_EXPERIMENT
+                object_type=datastore.OBJ_EXPERIMENT
             )
         # If the experiment has a functional MRI data object associated with
         # it, delete that object since existence of these objects is determined
@@ -442,7 +504,7 @@ class DataServer:
             return self.upload_images(file)
         else:
             # Cannot upload object of given type.
-            raise exceptions.InvalidRequest(
+            raise excpt.InvalidRequest(
                 'object type does not support file upload: ' + object_type
             )
 
@@ -482,7 +544,7 @@ class DataServer:
             return db_obj
         else:
             # Not a valid file suffix
-            raise exceptions.InvalidRequest(
+            raise excpt.InvalidRequest(
                 'invalid file suffix: ' + file.filename
             )
 
@@ -561,7 +623,7 @@ class DataServer:
             return db_obj
         else:
             # Not a valid file suffix
-            raise exceptions.InvalidRequest(
+            raise excpt.InvalidRequest(
                 'invalid file suffix: ' + file.filename
                 )
 
@@ -599,7 +661,7 @@ class DataServer:
             return db_obj
         else:
             # Not a valid file suffix
-            raise exceptions.InvalidRequest(
+            raise excpt.InvalidRequest(
                 'Invalid file suffix: ' + file.filename
             )
 
@@ -617,7 +679,7 @@ class DataServer:
             Unique object identifier
         object_type : string
             String representation of object type
-        attributes : List(datastore.Attribute)
+        attributes : List(attribute.Attribute)
             List of attribute instances
         """
         # Get ObjectStore for given object type.
@@ -625,12 +687,12 @@ class DataServer:
         # Test if an object with given identifier exists in the object store.
         # Raise ResourceNotFound exception if result is False.
         if not store.exists_object(object_id):
-            raise exceptions.ResourceNotFound(object_id, object_type)
+            raise excpt.ResourceNotFound(object_id, object_type=object_type)
         # Call the object store specific method to update object options
         try:
             store.update_object_attributes(object_id, attributes)
         except ValueError as err:
-            raise exceptions.InvalidRequest(str(err))
+            raise excpt.InvalidRequest(str(err))
 
     def upsert_object_property(self, object_id, object_type, json_obj):
         """Upsert property of given object. Type specifies the object store
@@ -662,7 +724,7 @@ class DataServer:
         # exception if result is None
         db_obj = store.get_object(object_id)
         if db_obj is None:
-            raise exceptions.ResourceNotFound(object_id, object_type)
+            raise excpt.ResourceNotFound(object_id, object_type=object_type)
         # Call the update_object_property method of the ObjectStore with the key
         # and optional value fields
         key = json_obj['key']
@@ -671,8 +733,8 @@ class DataServer:
         # Return a response code based on the outcome of the update operation.
         if state == datastore.OP_ILLEGAL:
             message = 'illegal upsert for type ' + object_type
-            message += ': (' + key + ', ' + value + ')'
-            raise exceptions.InvalidRequest(message)
+            message += ': (' + str(key) + ', ' + str(value) + ')'
+            raise excpt.InvalidRequest(message)
         elif state == datastore.OP_CREATED:
             return 201
         elif state == datastore.OP_DELETED:
@@ -682,4 +744,4 @@ class DataServer:
         else: # -1
             # This point should never be reached, unless object has been deleted
             # concurrently.
-            raise exceptions.ResourceNotFound(object_id, object_type)
+            raise excpt.ResourceNotFound(object_id, object_type=object_type)

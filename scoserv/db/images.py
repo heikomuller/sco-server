@@ -7,6 +7,7 @@ import os
 import shutil
 import uuid
 
+import attribute
 import datastore
 
 
@@ -97,7 +98,7 @@ class ImageGroupHandle(datastore.DataObject):
             Directory on local disk that contains images tar-file file
         images : List(GroupImage)
             List of images in the collection
-        options: Dictionary(datastore.Attribute)
+        options: Dictionary(attribute.Attribute)
             Dictionary of typed attributes defining the image group options
         timestamp : datetime, optional
             Time stamp of object creation (UTC).
@@ -311,26 +312,26 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         )
         # Initialize the definition of image group options attributes
         self.options_def = {
-            'stimulus_pixels_per_degree' : datastore.AttributeDefinition(
+            'stimulus_pixels_per_degree' : attribute.AttributeDefinition(
                 'stimulus_pixels_per_degree',
-                datastore.FloatType()
+                attribute.FloatType()
             ),
-            'stimulus_edge_value' : datastore.AttributeDefinition(
+            'stimulus_edge_value' : attribute.AttributeDefinition(
                 'stimulus_edge_value',
-                datastore.FloatType(),
+                attribute.FloatType(),
                 default_value=0.5
             ),
-            'stimulus_aperture_edge_value' : datastore.AttributeDefinition(
+            'stimulus_aperture_edge_value' : attribute.AttributeDefinition(
                 'stimulus_aperture_edge_value',
-                datastore.FloatType()
+                attribute.FloatType()
             ),
-            'normalized_stimulus_aperture' : datastore.AttributeDefinition(
+            'normalized_stimulus_aperture' : attribute.AttributeDefinition(
                 'normalized_stimulus_aperture',
-                datastore.FloatType()
+                attribute.FloatType()
             ),
-            'stimulus_gamma' : datastore.AttributeDefinition(
+            'stimulus_gamma' : attribute.AttributeDefinition(
                 'stimulus_gamma',
-                datastore.ArrayType(datastore.FloatType())
+                attribute.ArrayType(attribute.FloatType())
             )
         }
 
@@ -374,14 +375,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         os.rename(filename, os.path.join(directory, prop_filename))
         # The initial set of oprions is given by those options for which default
         # values are defined.
-        options = {}
-        for key in self.options_def:
-            attr_def = self.options_def[key]
-            if not attr_def.default_value is None:
-                options[attr_def.name] = datastore.Attribute(
-                    attr_def.name,
-                    attr_def.default_value
-                )
+        options = attribute.get_default_attributes(self.options_def)
         # Create the image group object and store it in the database before
         # returning it.
         obj = ImageGroupHandle(
@@ -409,8 +403,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         """
         # Get object attributes from Json document
         identifier = datastore.ObjectId(document['identifier'])
-        active = document['active']
-        # Create list og group images
+        # Create list of group images from Json
         images = list()
         for grp_image in document['images']:
             images.append(GroupImage(
@@ -418,27 +411,20 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
                 grp_image['folder'],
                 grp_image['name']
             ))
-        # Create dictionary of options from list of attributes (i.e.,
-        # name,value-pairs)
-        options = dict()
-        for attr in document['options']:
-            options[attr['name']] = datastore.Attribute(
-                attr['name'],
-                attr['value']
-            )
-        timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
-        properties = document['properties']
         # Directories are simply named by object identifier
         directory = os.path.join(self.directory, repr(identifier))
-        # Create image group handle..
+        # Create image group handle.
         return ImageGroupHandle(
             identifier,
-            properties,
+            document['properties'],
             directory,
             images,
-            options,
-            timestamp=timestamp,
-            is_active=active
+            attribute.attributes_from_json(document['options']),
+            timestamp=datetime.datetime.strptime(
+                document['timestamp'],
+                '%Y-%m-%dT%H:%M:%S.%f'
+            ),
+            is_active=document['active']
         )
 
     def get_collections_for_image(self, image_id):
@@ -486,13 +472,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         json_obj['images'] = images
         # Transform dictionary of options into list of elements, one per typed
         # attribute in the options set.
-        options = []
-        for key in img_coll.options:
-            options.append({
-                'name' : key,
-                'value' : img_coll.options[key].value
-            })
-        json_obj['options'] = options
+        json_obj['options'] = attribute.attributes_to_json(img_coll.options)
         return json_obj
 
     def update_object_attributes(self, identifier, attributes):
@@ -505,21 +485,21 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         ----------
         identifier : datastore.ObjectId
             Unique object identifier
-        attributes : List(datastore.Attribute)
+        attributes : List(attribute.Attribute)
             List of attribute instances
         """
         # Create a dictionary of options from the attribute list. The dictionary
         # allows to detect duplicate definitions of the same attribute
-        options= dict()
+        options= {}
         for attr in attributes:
             if attr.name in options:
-                raise ValueError('Duplicate attribute: ' + attr.name)
+                raise ValueError('duplicate attribute: ' + attr.name)
             if not attr.name in self.options_def:
-                raise ValueError('Unknown attribute: ' + attr.name)
+                raise ValueError('unknown attribute: ' + attr.name)
             attr_def = self.options_def[attr.name]
             if not attr_def.validate(attr.value):
-                raise ValueError('Invalid value for attribute: ' + attr.name)
-            options[attr.name] = attr.value
+                raise ValueError('invalid value for attribute: ' + attr.name)
+            options[attr.name] = attr
         # Retrieve object from database and replace existing options
         img_group = self.get_object(identifier)
         img_group.options = options
