@@ -46,7 +46,7 @@ class ImageHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -89,7 +89,7 @@ class ImageGroupHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -137,7 +137,7 @@ class GroupImage(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique identifier of the image
         folder : string
             (Sub-)folder in the grouop (default: /)
@@ -230,7 +230,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
         # Move original file to object directory
         os.rename(filename, os.path.join(image_dir, prop_name))
         # Create object handle and store it in database before returning it
-        obj = ImageHandle(identifier, properties, image_dir)
+        obj = ImageHandle(datastore.ObjectId(identifier), properties, image_dir)
         self.insert_object(obj)
         return obj
 
@@ -248,13 +248,13 @@ class DefaultImageManager(datastore.DefaultObjectStore):
             Handle for image object
         """
         # Get object properties from Json document
-        identifier = str(document['_id'])
+        identifier = datastore.ObjectId(document['identifier'])
         active = document['active']
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
         # The directory is not materilaized in database to allow moving the
         # base directory without having to update the database.
-        directory = self.get_directory(identifier)
+        directory = self.get_directory(repr(identifier))
         # Cretae image handle
         return ImageHandle(identifier, properties, directory, timestamp=timestamp, is_active=active)
 
@@ -267,7 +267,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique object identifier
 
         Returns
@@ -276,8 +276,8 @@ class DefaultImageManager(datastore.DefaultObjectStore):
             Path to image objects data directory
         """
         return os.path.join(
-            os.path.join(self.directory, identifier[:2]),
-            identifier
+            os.path.join(self.directory, repr(identifier)[:2]),
+            repr(identifier)
         )
 
 
@@ -384,7 +384,13 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
                 )
         # Create the image group object and store it in the database before
         # returning it.
-        obj = ImageGroupHandle(identifier, properties, directory, images, options)
+        obj = ImageGroupHandle(
+            datastore.ObjectId(identifier),
+            properties,
+            directory,
+            images,
+            options
+        )
         self.insert_object(obj)
         return obj
 
@@ -402,13 +408,13 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             Handle for image group object
         """
         # Get object attributes from Json document
-        identifier = str(document['_id'])
+        identifier = datastore.ObjectId(document['identifier'])
         active = document['active']
         # Create list og group images
         images = list()
         for grp_image in document['images']:
             images.append(GroupImage(
-                grp_image['identifier'],
+                datastore.ObjectId(grp_image['identifier']),
                 grp_image['folder'],
                 grp_image['name']
             ))
@@ -416,11 +422,14 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         # name,value-pairs)
         options = dict()
         for attr in document['options']:
-            options[attr['name']] = attr['value']
+            options[attr['name']] = datastore.Attribute(
+                attr['name'],
+                attr['value']
+            )
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
         # Directories are simply named by object identifier
-        directory = os.path.join(self.directory, identifier)
+        directory = os.path.join(self.directory, repr(identifier))
         # Create image group handle..
         return ImageGroupHandle(
             identifier,
@@ -437,18 +446,18 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        image_id : string
+        image_id : datastore.ObjectId
             Unique identifierof image object
 
         Returns
         -------
-        List(string)
+        List(datastore.ObjectId)
             List of image collection identifier
         """
         result = []
         # Get all active collections that contain the image identifier
-        for document in self.collection.find({'active' : True, 'images.identifier' : image_id}):
-            result.append(str(document['_id']))
+        for document in self.collection.find({'active' : True, 'images.identifier' : image_id.keys}):
+            result.append(datastore.ObjectId(document['images.identifier']))
         return result
 
     def to_json(self, img_coll):
@@ -470,7 +479,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         images = []
         for img_group in img_coll.images:
             images.append({
-                'identifier' : img_group.identifier,
+                'identifier' : img_group.identifier.keys,
                 'folder' : img_group.folder,
                 'name' : img_group.name
             })
@@ -481,12 +490,12 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         for key in img_coll.options:
             options.append({
                 'name' : key,
-                'value' : img_coll.options[key]
+                'value' : img_coll.options[key].value
             })
         json_obj['options'] = options
         return json_obj
 
-    def update_object_attributes(self, object_id, attributes):
+    def update_object_attributes(self, identifier, attributes):
         """Update set of typed attributes (options) that are associated with
         a given image group. Raises a ValueError if any of the given
         attributes violates the attribute definitions associated with image
@@ -494,7 +503,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        object_id : string
+        identifier : datastore.ObjectId
             Unique object identifier
         attributes : List(datastore.Attribute)
             List of attribute instances
@@ -512,14 +521,14 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
                 raise ValueError('Invalid value for attribute: ' + attr.name)
             options[attr.name] = attr.value
         # Retrieve object from database and replace existing options
-        img_group = self.get_object(object_id)
+        img_group = self.get_object(identifier)
         img_group.options = options
         # Replace existing object in database
         self.replace_object(img_group)
 
     @staticmethod
     def validate_group(images):
-        """Validates that the combination of folder and name for al images in
+        """Validates that the combination of folder and name for all images in
         a group is unique. Raises a ValueError exception if uniqueness
         constraint is violated.
 
@@ -528,13 +537,13 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         images : List(GroupImage)
             List of images in group
         """
-        image_ids = {}
+        image_ids = set()
         for image in images:
             key = image.folder + image.name
             if key in image_ids:
                 raise ValueError('Duplicate images in group: ' + key)
             else:
-                image_ids[key] = image.identifier
+                image_ids.add(key)
 
 
 # ------------------------------------------------------------------------------

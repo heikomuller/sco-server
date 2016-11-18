@@ -143,6 +143,9 @@ class ObjectUrls(object):
     """Factory object for individual object type Urls. This class implements
     the general pattern for resource Urls.
 
+    The Url factory is intended for 'strong' entities, i.e., objects that have
+    a single key as their identifier.
+
     Attributes
     ----------
     base_url : string
@@ -178,7 +181,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : db.datastore.ObjectId
             Unique object identifier
 
         Returns
@@ -194,7 +197,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : db.datastore.ObjectId
             Unique object identifier
 
         Returns
@@ -209,7 +212,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : db.datastore.ObjectId
             Unique object identifier
 
         Returns
@@ -217,7 +220,7 @@ class ObjectUrls(object):
         string
             Resource Url
         """
-        return self.list() + '/' + identifier
+        return self.list() + '/' + identifier.keys[0]
 
     def list(self):
         """Get Url for object listing. This is also the base URL for all other
@@ -235,7 +238,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : db.datastore.ObjectId
             Unique object identifier
 
         Returns
@@ -251,7 +254,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : db.datastore.ObjectId
             Unique functional data object identifier
 
         Returns
@@ -263,7 +266,7 @@ class ObjectUrls(object):
 
 
 class ExperimentUrls(ObjectUrls):
-    def __init__(self, base_url, class_identifier):
+    def __init__(self, base_url, class_identifiers):
         """ Initialize the URL factory by setting the base url and class
         identifier.
 
@@ -271,18 +274,55 @@ class ExperimentUrls(ObjectUrls):
         ----------
         base_url : string
             Base URL used for all URL's returned by the factory object.
-        class_identifier : string
-            Unique identifier for experiment objects in the API
+        class_identifiers : Dictionary()
+            Dictionary of class identifiers for the experiment and its weak
+            entities FMRI and PREDICTION. Expects a dictionary with three
+            keys: 'self' (=class identifier for experiment objects), 'fmri'
+            (= class identifier form functional MRI data objects), and
+            'prediction' (= class identifier form prediction objects).
         """
-        super(ExperimentUrls, self).__init__(base_url, class_identifier)
+        super(ExperimentUrls, self).__init__(base_url, class_identifiers['self'])
+        self.class_identifiers = class_identifiers
 
-    def upload_fmri(self, identifier):
+    def fmris_download(self, identifier):
+        """ Get Url to download a functional MRI data file that is associated
+        with an experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique fMRI data object identifier
+
+        Returns
+        -------
+        string
+            Functional data file download URL
+        """
+        return self.fmris_get(identifier) + '/data'
+
+    def fmris_get(self, identifier):
+        """ Get Url to retrieve a functional MRI data object that is associated
+        with an experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique fMRI data object identifier
+
+        Returns
+        -------
+        string
+            Functional data object URL
+        """
+        return self.fmris_upload(identifier) + '/' + identifier.keys[1]
+
+    def fmris_upload(self, identifier):
         """ Get Url to upload a functional MRI data file and associate it with
         the experiment that is identified by the given identifier.
 
         Parameters
         ----------
-        identifier : string
+        identifier : db.datastore.ObjectId
             Unique experiment object identifier
 
         Returns
@@ -290,7 +330,24 @@ class ExperimentUrls(ObjectUrls):
         string
             Functional data file upload URL
         """
-        return self.get(identifier) + '/fmri'
+        return self.get(identifier) + '/' + self.class_identifiers['fmri']
+
+    def fmris_upsert_property(self, identifier):
+        """ Get Url to upsert property of a functional MRI data object that is
+        associated with an experiment.
+
+        Parameters
+        ----------
+        identifier : db.datastore.ObjectId
+            Unique fMRI data object identifier
+
+        Returns
+        -------
+        string
+            Upsert data object property URL
+        """
+        return self.fmris_get(identifier) + '/properties'
+
 
 class UrlFactory:
     """Factory object for Web API URL's. Encapsulates generation of URL's for
@@ -302,8 +359,6 @@ class UrlFactory:
         Base URL used for all URL's returned by the factory object.
     experiments : ObjectUrls
         Url factory for experiment resources
-    fmris : ObjectUrls
-        Url factory for functional data resources
     images : ObjectUrls
         Url factory for image resources
     image_groups : ObjectUrls
@@ -323,8 +378,11 @@ class UrlFactory:
         # Remove trailing '/'
         while self.base_url.endswith('/'):
             self.base_url = self.base_url[:-1]
-        self.experiments = ExperimentUrls(self.base_url, 'experiments')
-        self.fmris = ObjectUrls(self.base_url, 'fmris')
+        self.experiments = ExperimentUrls(self.base_url, {
+            'self' : 'experiments',
+            'fmri' : 'fmri',
+            'prediction' : 'predictions'
+        })
         self.images = ObjectUrls(self.base_url, 'images/files')
         self.image_groups = ObjectUrls(self.base_url, 'images/groups')
         self.subjects = ObjectUrls(self.base_url, 'subjects')
@@ -376,11 +434,11 @@ class HATEOASReferenceFactory:
             links['upsert'] = self.urls.subjects.upsert_property(db_obj.identifier)
         elif db_obj.is_experiment:
             links['delete'] = self.urls.experiments.delete(db_obj.identifier)
-            links['upload.fmri'] = self.urls.experiments.upload_fmri(db_obj.identifier)
+            links['upload.fmri'] = self.urls.experiments.fmris_upload(db_obj.identifier)
             links['upsert'] = self.urls.experiments.upsert_property(db_obj.identifier)
         elif db_obj.is_fmri_data:
-            links['download'] = self.urls.fmris.download(db_obj.identifier)
-            links['upsert'] = self.urls.fmris.upsert_property(db_obj.identifier)
+            links['download'] = self.urls.experiments.fmris_download(db_obj.identifier)
+            links['upsert'] = self.urls.experiments.fmris_upsert_property(db_obj.identifier)
         elif db_obj.is_image:
             links['delete'] = self.urls.images.delete(db_obj.identifier)
             links['download'] = self.urls.images.download(db_obj.identifier)
@@ -415,7 +473,7 @@ class HATEOASReferenceFactory:
         elif db_obj.is_experiment:
             ref = self.urls.experiments.get(db_obj.identifier)
         elif db_obj.is_fmri_data:
-            ref = self.urls.fmris.get(db_obj.identifier)
+            ref = self.urls.experiments.fmris_get(db_obj.identifier)
         elif db_obj.is_image:
             ref = self.urls.images.get(db_obj.identifier)
         elif db_obj.is_image_group:

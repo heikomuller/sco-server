@@ -69,7 +69,7 @@ paths:
                     schema:
                         $ref: "#/definitions/DBObjectListing"
                 400:
-                    description: Invalid parameter value
+                    description: Invalid arguments
         post:
             summary: Create experiment
             description: Create new experiment object
@@ -105,7 +105,7 @@ paths:
                         $ref: "#/definitions/OpResult"
                 400:
                     description: Invalid request body
-    /experiments/{objectId}:
+    /experiments/{experimentId}:
         get:
             summary: Get experiment
             description: Get experiment object with given identifier
@@ -113,7 +113,7 @@ paths:
             tags:
                 - experiment
             parameters:
-                - name: objectId
+                - name: experimentId
                   in: path
                   required: true
                   description: Unique identifier of experiment object
@@ -134,7 +134,7 @@ paths:
             tags:
                 - experiment
             parameters:
-                - name: objectId
+                - name: experimentId
                   in: path
                   required: true
                   description: Unique identifier of experiment object
@@ -144,15 +144,16 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment
-    /experiments/{objectId}/fmri:
+    /experiments/{experimentId}/fmri:
         post:
             summary: Upload fMRI data
             description: Upload associated functional MRI data for experiment object
             operationId: uploadFMRI
             tags:
+                - functional data
                 - experiment
             parameters:
-                - name: objectId
+                - name: experimentId
                   in: path
                   required: true
                   description: Unique identifier of experiment object
@@ -175,7 +176,293 @@ paths:
                     description: Invalid file or request
                 404:
                     description: Unknown experiment object
-    /experiments/{objectId}/properties:
+    /experiments/{experimentId}/fmri/{fmriId}:
+        get:
+            summary: Get functional MRI data
+            description: Get functional MRI data object with given identifier
+            operationId: getFMRI
+            tags:
+                - experiment
+                - functional data
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: fmriId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of functional MRI data object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Functional MRI data object
+                    schema:
+                        $ref: "#/definitions/DBObjectHandle"
+                404:
+                    description: Unknown functional MRI data object
+    /experiments/{experimentId}/fmri/{fmriId}/properties:
+        post:
+            summary: Update functional MRI data property
+            description: Insert, delete, or update property of functional MRI data object
+            operationId: upsertFMRIProperty
+            tags:
+                - experiment
+                - functional data
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: fmriId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of functional MRI data object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
+                404:
+                    description: Unknown functional MRI data object
+    /experiments/{experimentId}/fmri/{fmriId}/data:
+        get:
+            summary: Download functional MRI data file
+            description: Download original functional MRI data file for object with given identifier
+            operationId: downloadFMRI
+            tags:
+                - experiment
+                - functional data
+                - download
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: fmriId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of functional MRI data object
+                  type: string
+            produces:
+                - application/gzip
+                - application/x-tar
+            responses:
+                200:
+                    description: File object
+                    schema:
+                        type: file
+                404:
+                    description: File not found
+    /experiments/{experimentId}/predictions:
+        get:
+            summary: List predictions
+            description: List all predictions that are part of a particular experiment
+            operationId: listPredictions
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of predictions
+                    schema:
+                        $ref: "#/definitions/DBObjectListing"
+                400:
+                    description: Invalid arguments
+                404:
+                    description: Unknown experiment object
+        post:
+            summary: Run Experiment
+            description: Start a model run for a given experiment
+            operationId: runExperiment
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: arguments
+                  in: body
+                  required: true
+                  description: List of arguments for model run
+                  schema:
+                      type: object
+                      required:
+                          - arguments
+                      properties:
+                          arguments:
+                              type: array
+                              items:
+                                  $ref: "#/definitions/Attribute"
+            responses:
+                201:
+                    description: Model run started
+                    schema:
+                        $ref: "#/definitions/PredictionHandle"
+                400:
+                    description: Invalid arguments
+                404:
+                    description: Unknown experiment object
+    /experiments/{experimentId}/predictions/{predictionId}:
+        get:
+            summary: Get prediction
+            description: Get prediction for experiment with given identifiers
+            operationId: getPrediction
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Prediction object
+                    schema:
+                        $ref: "#/definitions/PredictionHandle"
+                404:
+                    description: Unknown experiment or prediction object
+        delete:
+            summary: Delete prediction
+            description: Delete prediction model run from experiment object
+            operationId: deletePrediction
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown experiment or prediction object
+    /experiments/{experimentId}/predictions/{predictionId}/data:
+        get:
+            summary: Get prediction result
+            description: Download results produced by the predictive model
+            operationId: downloadPrediction
+            tags:
+                - experiment
+                - prediction
+                - download
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+            produces:
+                - application/gzip
+                - application/x-tar
+            responses:
+                200:
+                    description: File object
+                    schema:
+                        type: file
+                404:
+                    description: Unknown experiment or prediction object
+    /experiments/{experimentId}/predictions/{predictionId}/properties:
+        post:
+            summary: Upsert prediction property
+            description: Insert, delete, or update property of prediction object
+            operationId: upsertPredictionProperty
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
+                404:
+                    description: Unknown experiment or prediction object
+    /experiments/{experimentId}/properties:
         post:
             summary: Update experiment property
             description: Insert, delete, or update property of experiment object
@@ -183,7 +470,7 @@ paths:
             tags:
                 - experiment
             parameters:
-                - name: objectId
+                - name: experimentId
                   in: path
                   required: true
                   description: Unique identifier of experiment object
@@ -201,82 +488,10 @@ paths:
                     description: New property added
                 204:
                     description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown experiment object
-    /fmris/{objectId}:
-        get:
-            summary: Get functional MRI data
-            description: Get functional MRI data object with given identifier
-            operationId: getFMRI
-            tags:
-                - functional data
-            parameters:
-                - name: objectId
-                  in: path
-                  required: true
-                  description: Unique identifier of functional MRI data object
-                  type: string
-            produces:
-                - application/json
-            responses:
-                200:
-                    description: Functional MRI data object
-                    schema:
-                        $ref: "#/definitions/DBObjectHandle"
-                404:
-                    description: Unknown functional MRI data object
-    /fmris/{objectId}/properties:
-        post:
-            summary: Update functional MRI data property
-            description: Insert, delete, or update property of functional MRI data object
-            operationId: upsertFMRIProperty
-            tags:
-                - functional data
-            parameters:
-                - name: objectId
-                  in: path
-                  required: true
-                  description: Unique identifier of functional MRI data object
-                  type: string
-                - name: property
-                  in: body
-                  required: true
-                  description: Key-value pair defining property and new value
-                  schema:
-                      $ref: "#/definitions/UpsertProperty"
-            responses:
-                200:
-                    description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
-                404:
-                    description: Unknown functional MRI data object
-    /fmris/{objectId}/data:
-        get:
-            summary: Download functional MRI data file
-            description: Download original functional MRI data file for object with given identifier
-            operationId: downloadFMRI
-            tags:
-                - functional data
-                - download
-            parameters:
-                - name: objectId
-                  in: path
-                  required: true
-                  description: Unique identifier of functional MRI data object
-                  type: string
-            produces:
-                - application/gzip
-                - application/x-tar
-            responses:
-                200:
-                    description: File object
-                    schema:
-                        type: file
-                404:
-                    description: File not found
     /images/files:
         get:
             summary: List images
@@ -308,8 +523,8 @@ paths:
                     schema:
                         $ref: "#/definitions/DBObjectListing"
                 400:
-                    description: Invalid parameter value
-    /images/files/{objectId}:
+                    description: Invalid arguments
+    /images/files/{imageId}:
         get:
             summary: Get image
             description: Get image object with given identifier
@@ -317,7 +532,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageId
                   in: path
                   required: true
                   description: Unique identifier of image object
@@ -338,7 +553,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageId
                   in: path
                   required: true
                   description: Unique identifier of image object
@@ -348,7 +563,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown subject
-    /images/files/{objectId}/properties:
+    /images/files/{imageId}/properties:
         post:
             summary: Update image property
             description: Insert, delete, or update property of image object
@@ -356,7 +571,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageId
                   in: path
                   required: true
                   description: Unique identifier of image object
@@ -374,9 +589,11 @@ paths:
                     description: New property added
                 204:
                     description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown anatomy object
-    /images/files/{objectId}/data:
+    /images/files/{imageId}/data:
         get:
             summary: Download image file
             description: Download single image file for object with given identifier
@@ -385,7 +602,7 @@ paths:
                 - image
                 - download
             parameters:
-                - name: objectId
+                - name: imageId
                   in: path
                   required: true
                   description: Unique identifier of image object
@@ -432,8 +649,8 @@ paths:
                     schema:
                         $ref: "#/definitions/DBObjectListing"
                 400:
-                    description: Invalid parameter value
-    /images/groups/{objectId}:
+                    description: Invalid arguments
+    /images/groups/{imageGroupId}:
         get:
             summary: Get image group
             description: Get image group object with given identifier
@@ -441,7 +658,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageGroupId
                   in: path
                   required: true
                   description: Unique identifier of image group object
@@ -462,7 +679,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageGroupId
                   in: path
                   required: true
                   description: Unique identifier of image group object
@@ -472,7 +689,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown subject
-    /images/groups/{objectId}/data:
+    /images/groups/{imageGroupId}/data:
         get:
             summary: Download image groups
             description: Download image groups file for object with given identifier
@@ -481,7 +698,7 @@ paths:
                 - image
                 - download
             parameters:
-                - name: objectId
+                - name: imageGroupId
                   in: path
                   required: true
                   description: Unique identifier of image group object
@@ -496,7 +713,7 @@ paths:
                         type: file
                 404:
                     description: File not found
-    /images/groups/{objectId}/options:
+    /images/groups/{imageGroupId}/options:
         post:
             summary: Update image group options
             description: Update set of options of image group object
@@ -504,7 +721,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageGroupId
                   in: path
                   required: true
                   description: Unique identifier of image group object
@@ -531,7 +748,7 @@ paths:
                     description: Property deleted
                 404:
                     description: Unknown anatomy object
-    /images/groups/{objectId}/properties:
+    /images/groups/{imageGroupId}/properties:
         post:
             summary: Update image group property
             description: Insert, delete, or update property of image group object
@@ -539,7 +756,7 @@ paths:
             tags:
                 - image
             parameters:
-                - name: objectId
+                - name: imageGroupId
                   in: path
                   required: true
                   description: Unique identifier of image group object
@@ -557,6 +774,8 @@ paths:
                     description: New property added
                 204:
                     description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown anatomy object
     /images/upload:
@@ -614,7 +833,7 @@ paths:
                     schema:
                         $ref: "#/definitions/DBObjectListing"
                 400:
-                    description: Invalid parameter value
+                    description: Invalid arguments
         post:
             summary: Create subject via file upload
             description: Upload a brain anatomy MRI archive (Freesurfer directory)
@@ -638,7 +857,7 @@ paths:
                         $ref: "#/definitions/OpResult"
                 400:
                     description: Invalid file or request
-    /subjects/{objectId}:
+    /subjects/{subjectId}:
         get:
             summary: Get subject
             description: Get brain anatomy MRI object with given identifier
@@ -646,7 +865,7 @@ paths:
             tags:
                 - subject
             parameters:
-                - name: objectId
+                - name: subjectId
                   in: path
                   required: true
                   description: Unique identifier of subject
@@ -667,7 +886,7 @@ paths:
             tags:
                 - subject
             parameters:
-                - name: objectId
+                - name: subjectId
                   in: path
                   required: true
                   description: Unique identifier of subject
@@ -677,7 +896,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown subject
-    /subjects/{objectId}/properties:
+    /subjects/{subjectId}/properties:
         post:
             summary: Update subject property
             description: Insert, delete, or update property of subject
@@ -685,7 +904,7 @@ paths:
             tags:
                 - subject
             parameters:
-                - name: objectId
+                - name: subjectId
                   in: path
                   required: true
                   description: Unique identifier of subject
@@ -703,9 +922,11 @@ paths:
                     description: New property added
                 204:
                     description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown anatomy object
-    /subjects/{objectId}/data:
+    /subjects/{subjectId}/data:
         get:
             summary: Download anatomy file
             description: Download original anatomy file for object with given identifier
@@ -714,7 +935,7 @@ paths:
                 - subject
                 - download
             parameters:
-                - name: objectId
+                - name: subjectId
                   in: path
                   required: true
                   description: Unique identifier of subject
@@ -839,6 +1060,16 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
+    PredictionHandle:
+        allOf:
+            - $ref: '#/definitions/DBObjectHandle'
+            - properties:
+                arguments:
+                    type: array
+                    items:
+                        $ref: "#/definitions/Attribute"
+                status:
+                    type: string
     Reference:
         type: object
         required:

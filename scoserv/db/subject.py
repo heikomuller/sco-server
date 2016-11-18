@@ -64,7 +64,7 @@ class SubjectHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -141,6 +141,33 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
             properties
         )
 
+    def get_download(self, identifier):
+        """Get download information for object with given identifier.
+
+        THis method overrides the super class method because subjects are stored
+        in a different sub-folder.
+
+        Parameters
+        ----------
+        identifier : datastore.ObjectId
+            Unique object identifier
+
+        Returns
+        -------
+        Tuple (string, string, string)
+            Returns directory, file name, and mime type of downloadable file.
+            Result contains all None if object does not exist.
+        """
+        # Retrieve subject from database. Abort if it does not exist.
+        subject = self.get_object(identifier)
+        if subject is None:
+            return None
+        # Return subjects upload directory, original file name, and mime type
+        directory = subject.upload_directory
+        filename = subject.properties[datastore.PROPERTY_FILENAME]
+        mime_type = subject.properties[datastore.PROPERTY_MIMETYPE]
+        return directory, filename, mime_type
+
     def from_json(self, document):
         """Create subject object from JSON document retrieved from database.
         Overwrites super class method since downloadable subject data is
@@ -156,38 +183,14 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         SubjectHandle
             Handle for subject
         """
-        identifier = str(document['_id'])
+        identifier = datastore.ObjectId(document['identifier'])
         active = document['active']
         # The directory is not materilaized in database to allow moving the
         # base directory without having to update the database.
-        directory = os.path.join(self.directory, identifier)
+        directory = os.path.join(self.directory, repr(identifier))
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
         return SubjectHandle(identifier, properties, directory, timestamp=timestamp, is_active=active)
-
-    def get_download(self, identifier):
-        """Get download information for object with given identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique object identifier
-
-        Returns
-        -------
-        Tuple (string, string, string)
-            Returns directory, file name, and mime type of downloadable file.
-            Result contains all None if object does not exist.
-        """
-        # Retrieve subject from database. Abort if it does not exist.
-        subject = self.get_object(identifier)
-        if subject is None:
-            return None, None, None
-        # Return subjects upload directory, original file name, and mime type
-        directory = subject.upload_directory
-        filename = subject.properties[datastore.PROPERTY_FILENAME]
-        mime_type = subject.properties[datastore.PROPERTY_MIMETYPE]
-        return directory, filename, mime_type
 
     def upload_file(self, filename, file_type=FILE_TYPE_FREESURFER_DIRECTORY):
         """Create an anatomy object on local disk from the given file.
@@ -244,17 +247,9 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
             shutil.rmtree(temp_dir)
             raise ValueError('Not a valid subject directory')
         # Create a new identifier. This identifier will be used as the
-        # directory name. Because of the latter we (rarely) have to try
-        # different identifier until we get one that does not reference an
-        # existing directory.
-        identifier = None
-        while not identifier:
-            identifier = str(uuid.uuid4())
-            subject_dir = os.path.join(self.directory, identifier)
-            # Test if the identifier references an existing directory. If so,
-            # create a new identifier and test again.
-            if os.access(subject_dir, os.F_OK):
-                identifier = None
+        # directory name.
+        identifier = str(uuid.uuid4())
+        subject_dir = os.path.join(self.directory, identifier)
         # Create the initial set of properties for the new anatomy object. The
         # name is derived from the filename minus any known extensions
         prop_filename = os.path.basename(os.path.normpath(filename))
@@ -290,7 +285,11 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         # Remove the temp directory
         shutil.rmtree(temp_dir)
         # Use current time in UTC as the object's timestamp
-        obj = SubjectHandle(identifier, properties, subject_dir)
+        obj = SubjectHandle(
+            datastore.ObjectId(identifier),
+            properties,
+            subject_dir
+        )
         self.insert_object(obj)
         return obj
 

@@ -91,7 +91,6 @@ class DataServer:
         # Maintain dictionary of listing URL's for different object types
         self.object_urls = {
             datastore.OBJ_EXPERIMENT : urls.experiments.list(),
-            datastore.OBJ_FMRI_DATA : urls.fmris.list(),
             datastore.OBJ_IMAGE : urls.images.list(),
             datastore.OBJ_IMAGEGROUP : urls.image_groups.list(),
             datastore.OBJ_SUBJECT : urls.subjects.list()
@@ -107,9 +106,9 @@ class DataServer:
         ----------
         name : string
             User-provided name
-        subject_id : string
+        subject_id : datastore.ObjectId
             Unique subject identifier
-        image_group_id : string
+        image_group_id : datastore.ObjectId
             Unique image group identifier
 
         Returns
@@ -142,7 +141,7 @@ class DataServer:
 
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Unique object identifier
         object_type : string
             String representation of object type
@@ -178,7 +177,7 @@ class DataServer:
 
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Unique object identifier
         object_type : string
             String representation of object type
@@ -204,7 +203,7 @@ class DataServer:
 
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Unique object identifier
         object_type : string
             String representation of object type
@@ -225,7 +224,7 @@ class DataServer:
         # object type, timestamp, name, and properties listing.
         # and add HATEOAS references.
         item = {
-            'id' : db_obj.identifier,
+            'id' : db_obj.identifier.keys,
             'type' : db_obj.type,
             'timestamp' : str(db_obj.timestamp.isoformat()),
             'name' : db_obj.name,
@@ -237,7 +236,7 @@ class DataServer:
             # For image groups add list of group images and list of options
             item['images'] = [
                 {
-                    'identifier' : image.identifier,
+                    'identifier' : image.identifier.keys,
                     'folder' : image.folder,
                     'name' : image.name,
                     'links' : self.refs.to_references(
@@ -249,7 +248,7 @@ class DataServer:
             item['options'] = [
                 {
                     'name' : attr,
-                    'value' : db_obj.options[attr]
+                    'value' : db_obj.options[attr].value
                 } for attr in db_obj.options
             ]
         elif db_obj.is_experiment:
@@ -259,7 +258,7 @@ class DataServer:
                 include_inactive=True
             )
             item['subject'] = {
-                'identifier' : subject.identifier,
+                'identifier' : subject.identifier.keys,
                 'name' : subject.name,
                 'links' : self.refs.object_references(subject)
             }
@@ -268,7 +267,7 @@ class DataServer:
                 include_inactive=True
             )
             item['images'] = {
-                'identifier' : images.identifier,
+                'identifier' : images.identifier.keys,
                 'name' : images.name,
                 'links' : self.refs.object_references(images)
             }
@@ -278,7 +277,7 @@ class DataServer:
                     include_inactive=True
                 )
                 item['fmri'] = {
-                    'identifier' : fmri.identifier,
+                    'identifier' : fmri.identifier.keys,
                     'name' : fmri.name,
                     'links' : self.refs.object_references(fmri)
                 }
@@ -323,7 +322,7 @@ class DataServer:
         items = []
         for db_obj in list_result.items:
             item = {
-                'id' : db_obj.identifier,
+                'id' : db_obj.identifier.keys,
                 'timestamp' : str(db_obj.timestamp.isoformat()),
                 'name' : db_obj.name,
                 'links' : self.refs.object_references(db_obj)
@@ -386,7 +385,7 @@ class DataServer:
         Raises ResourceNotFound exception if experiment is not found.
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Unique experiment identifier
         file : FileObject
             Functional MRI data file that is being uploaded
@@ -412,7 +411,7 @@ class DataServer:
         if not experiment.fmri_data is None:
             self.delete_object(experiment.fmri_data, datastore.OBJ_FMRI_DATA)
         # Create a database object for the uploaded fMRI file.
-        fmri_obj = self.upload_fmri_data(file)
+        fmri_obj = self.upload_fmri_data(object_id, file)
         # Update object in database and return the updated experiment object
         experiment.fmri_data = fmri_obj.identifier
         store.replace_object(experiment)
@@ -447,7 +446,7 @@ class DataServer:
                 'object type does not support file upload: ' + object_type
             )
 
-    def upload_fmri_data(self, file):
+    def upload_fmri_data(self, experiment_id, file):
         """Upload a functional MRI data archive file. Expects a tar-file.
 
         Throws a InvalidRequest exception if the given file has an unexpected
@@ -455,6 +454,8 @@ class DataServer:
 
         Parameters
         ----------
+        experiment_id : datastore.ObjectId
+            Unique identifier of experiment the fMRI data is associated with
         file : File
             File-type object referencing the uploaded file
 
@@ -475,7 +476,7 @@ class DataServer:
             filename = secure_filename(file.filename)
             upload_file = os.path.join(temp_dir, filename)
             file.save(upload_file)
-            db_obj = store.create_object(upload_file)
+            db_obj = store.create_object(experiment_id, upload_file)
             # Delete the temporary folder
             shutil.rmtree(temp_dir)
             return db_obj
@@ -612,7 +613,7 @@ class DataServer:
 
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Unique object identifier
         object_type : string
             String representation of object type
@@ -642,7 +643,7 @@ class DataServer:
 
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Unique object identifier
         object_type : string
             String representation of object type

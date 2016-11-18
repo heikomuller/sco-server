@@ -33,7 +33,7 @@ class FunctionalDataHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -114,11 +114,11 @@ class DefaultFunctionalDataManager(datastore.DefaultObjectStore):
         FunctionalDataHandle
             Handle for functional data object
         """
-        identifier = str(document['_id'])
+        identifier = datastore.ObjectId(document['identifier'])
         active = document['active']
         # The directory is not materilaized in database to allow moving the
         # base directory without having to update the database.
-        directory = os.path.join(self.directory, identifier)
+        directory = os.path.join(self.directory, identifier.keys[1])
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
         return FunctionalDataHandle(identifier, properties, directory, timestamp=timestamp, is_active=active)
@@ -143,13 +143,15 @@ class DefaultFMRIDataManager(DefaultFunctionalDataManager):
         """
         super(DefaultFMRIDataManager, self).__init__(mongo_collection, base_directory)
 
-    def create_object(self, filename):
+    def create_object(self, experiment_id, filename):
         """Create a functional data object for the given file. Currently, no
         tests are performed that the file contains valid data. Expects the file
         to be a valid tar archive.
 
         Parameters
         ----------
+        experiment_id : datastore.ObjectId
+            Unique identifier of experiment the fMRI data is associated with
         filename : string
             Name of the (uploaded) file
 
@@ -185,6 +187,10 @@ class DefaultFMRIDataManager(DefaultFunctionalDataManager):
         # Move original file to object directory
         os.rename(filename, os.path.join(object_dir, prop_name))
         # Create object handle and store it in database before returning it
-        obj = FunctionalDataHandle(identifier, properties, object_dir)
+        obj = FunctionalDataHandle(
+            datastore.ObjectId(experiment_id.keys + [identifier]),
+            properties,
+            object_dir
+        )
         self.insert_object(obj)
         return obj

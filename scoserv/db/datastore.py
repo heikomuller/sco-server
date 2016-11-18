@@ -70,13 +70,52 @@ OP_UPDATED = 3
 #
 # ------------------------------------------------------------------------------
 
+class ObjectId(object):
+    """Identifier for database objects. Identifiers are given by a list (or
+    tuple) of values. For weak entities the list contains more than one element
+    while strong entities have only a single element.
+
+    The concatenation of all key values in the identifier list is assumed to
+    be a single unique identifier for the object.
+
+    Attributes
+    ----------
+    keys : List(string)
+        List of identifier.
+    """
+    def __init__(self, keys):
+        # At the moment the argument can be a single string, a tuple of strings,
+        # or a list of string. Convert the given value into a list of strings
+        if isinstance(keys, basestring):
+            self.keys = [keys]
+        elif isinstance(keys, tuple):
+            self.keys = list(keys)
+        elif isinstance(keys, list):
+            self.keys = keys
+        else:
+            raise ValueError('invalid type for object keys')
+
+    def __repr__(self):
+        """String representation for list of keys. This is a concatenation of
+        elements in the list of keys.
+
+        Currently, the concatenation delimiter is '#'
+
+        Returns
+        -------
+        string
+            Global unique string identifier
+        """
+        return '#'.join(self.keys)
+
+
 class DBObject(object):
     """Database Object - Base implementation of database objects. Contains the
     object identifier, type, and set of object-specific properties.
 
     Attributes
     ----------
-    identifier : string
+    identifier : ObjectId
         Unique object identifier
     type : string
         String representation of object type (has to be in OBJECT_TYPES)
@@ -101,7 +140,7 @@ class DBObject(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
         type : string
             String representation of object type (has to be in OBJECT_TYPES)
@@ -120,7 +159,7 @@ class DBObject(object):
             raise UnknownObjectType(type)
         # Ensure that the properties contains the mandatory property NAME
         if not PROPERTY_NAME in properties:
-            raise ValueError('Missing property: ' + PROPERTY_NAME)
+            raise ValueError('missing property: ' + PROPERTY_NAME)
         # Initialize object variables
         self.identifier = identifier
         self.type = type
@@ -226,7 +265,7 @@ class ObjectListing(object):
 
         Parameters
         ----------
-        items : List
+        items : List(DBObject)
             List of objects that are subclass of DBObject.
         total_count : int
             Total number of object's of this type in the database. This number
@@ -537,7 +576,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
 
         Returns
@@ -553,7 +592,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
 
         Returns
@@ -569,7 +608,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
 
         Returns
@@ -586,7 +625,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
         include_inactive : Boolean
             Flag indicating whether inactive (i.e., deleted) object should be
@@ -645,7 +684,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
         key : string
             Property name
@@ -718,7 +757,7 @@ class MongoDBStore(ObjectStore):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
 
         Returns
@@ -731,7 +770,7 @@ class MongoDBStore(ObjectStore):
         if not db_object is None:
             # Delete object with given identifier. Result contains object count
             # to determine if the object existed or not
-            self.collection.update_one({"_id": identifier}, {'$set' : {'active' : False}})
+            self.collection.update_one({"_id": repr(identifier)}, {'$set' : {'active' : False}})
         # Return retrieved object or None if it didn't exist.
         return db_object
 
@@ -750,7 +789,7 @@ class MongoDBStore(ObjectStore):
         """
         # Return True if query for object identifier with active flag on returns
         # a result.
-        return self.collection.find({'_id': identifier, 'active' : True}).count() > 0
+        return self.collection.find({'_id': repr(identifier), 'active' : True}).count() > 0
 
     @abstractmethod
     def from_json(self, document):
@@ -787,7 +826,7 @@ class MongoDBStore(ObjectStore):
         """
         # Find all objects with given identifier. The result size is expected
         # to be zero or one
-        query = {'_id': identifier}
+        query = {'_id': repr(identifier)}
         if not include_inactive:
             query['active'] = True
         cursor = self.collection.find(query)
@@ -859,7 +898,7 @@ class MongoDBStore(ObjectStore):
         # database. Instead, their active flag is set to False.
         obj = self.to_json(db_object)
         obj['active'] = True
-        self.collection.replace_one({'_id' : db_object.identifier, 'active' : True}, obj)
+        self.collection.replace_one({'_id' : repr(db_object.identifier), 'active' : True}, obj)
 
     def to_json(self, db_obj):
         """Create a Json-like dictionary for objects managed by this object
@@ -874,8 +913,13 @@ class MongoDBStore(ObjectStore):
         (JSON)
             Json-like object, i.e., dictionary.
         """
+        # Make sure to use the string representation of the object identifier
+        # as document identifier. Include the identifier's keys in the document
+        # that is stored in the database (only if there is more than one key,
+        # i.e., the identifier cannot be generated from the document _id.
         return {
-            '_id' : db_obj.identifier,
+            '_id' : repr(db_obj.identifier),
+            'identifier' : db_obj.identifier.keys,
             'timestamp' : str(db_obj.timestamp.isoformat()),
             'properties' : db_obj.properties}
 
@@ -927,7 +971,7 @@ class DefaultObjectStore(MongoDBStore):
 
         Parameters
         ----------
-        identifier : string
+        identifier : ObjectId
             Unique object identifier
 
         Returns

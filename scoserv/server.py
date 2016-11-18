@@ -140,8 +140,8 @@ def create_experiment():
     # Call upload method of API to get a new experiment object handle.
     experiment = sco.create_experiment(
         json_obj['name'],
-        json_obj['subject'],
-        json_obj['images']
+        datastore.ObjectId(json_obj['subject']),
+        datastore.ObjectId(json_obj['images'])
     )
     # Return result including list of references for new experiment.
     return jsonify({
@@ -150,52 +150,47 @@ def create_experiment():
     }), 201
 
 
-@app.route('/experiments/<string:object_id>', methods=['GET'])
-def get_experiment(object_id):
+@app.route('/experiments/<string:experiment_id>', methods=['GET'])
+def get_experiment(experiment_id):
     """Get experiment (GET) - Retrieve an experiment object from the database.
     """
     # Return Json serialization of object. The API throws ResourceNotFound
     # excpetion if the given object identifier does not reference an existing
     # experiment.
-    return jsonify(sco.get_object(object_id, datastore.OBJ_EXPERIMENT))
+    return jsonify(sco.get_object(
+        datastore.ObjectId(experiment_id),
+        datastore.OBJ_EXPERIMENT)
+    )
 
 
-@app.route('/experiments/<string:object_id>', methods=['DELETE'])
-def delete_experiment(object_id):
+@app.route('/experiments/<string:experiment_id>', methods=['DELETE'])
+def delete_experiment(experiment_id):
     """Delete experiment (DELETE) - Delete an experiment object from the
     database.
     """
     # Delete experiment object with given identifier and return 204. The API
     # will throw ResourceNotFound exception if the given identifier does not
     # reference an existing experiment.
-    sco.delete_object(object_id, datastore.OBJ_EXPERIMENT)
+    sco.delete_object(
+        datastore.ObjectId(experiment_id),
+        datastore.OBJ_EXPERIMENT
+    )
     return '', 204
 
-@app.route('/experiments/<string:object_id>/fmri', methods=['POST'])
-def upload_experiment_fmri(object_id):
-    """Upload functional MRI data (POST) - Upload a functional MRI data archive
-    file that is associated with a experiment.
-    """
-    # Get the uploaded file. Method raises InvalidRequest if no file was given
-    upload_file = get_upload_file(request)
-    # Upload the fMRI data and associate it with the experiment. Method will
-    # raise InvalidRequest or ResourceNotFound exceptions.
-    experiment = sco.upload_experiment_fmri(object_id, upload_file)
-    # Return result including a list of references to updated experiment
-    return jsonify({
-        'result' : 'SUCCESS',
-        'links': sco.refs.object_references(experiment)
-    })
 
-@app.route('/experiments/<string:object_id>/properties', methods=['POST'])
-def upsert_experiment_property(object_id):
+@app.route('/experiments/<string:experiment_id>/properties', methods=['POST'])
+def upsert_experiment_property(experiment_id):
     """Upsert experiment property (POST) - Upsert a property of an experiment
     object in the database.
     """
     # Upsert the object property. If response code indicates whether the
     # property was created, updated, or deleted. Method throws InvalidRequest
     # or ResourceNotFound exceptions if necessary.
-    code = upsert_object_property(request, object_id, datastore.OBJ_EXPERIMENT)
+    code = upsert_object_property(
+        request,
+        datastore.ObjectId(experiment_id),
+        datastore.OBJ_EXPERIMENT
+    )
     return '', code
 
 
@@ -203,38 +198,73 @@ def upsert_experiment_property(object_id):
 # Functional Data
 # ------------------------------------------------------------------------------
 
-@app.route('/fmris/<string:object_id>', methods=['GET'])
-def get_fmri(object_id):
+@app.route('/experiments/<string:experiment_id>/fmri', methods=['POST'])
+def upload_experiment_fmri(experiment_id):
+    """Upload functional MRI data (POST) - Upload a functional MRI data archive
+    file that is associated with a experiment.
+    """
+    # Get the uploaded file. Method raises InvalidRequest if no file was given
+    upload_file = get_upload_file(request)
+    # Upload the fMRI data and associate it with the experiment. Method will
+    # raise InvalidRequest or ResourceNotFound exceptions.
+    experiment = sco.upload_experiment_fmri(
+        datastore.ObjectId(experiment_id),
+        upload_file
+    )
+    # Return result including a list of references to updated experiment
+    return jsonify({
+        'result' : 'SUCCESS',
+        'links': sco.refs.object_references(experiment)
+    })
+
+
+@app.route('/experiments/<string:experiment_id>/fmri/<string:fmri_id>', methods=['GET'])
+def get_fmri(experiment_id, fmri_id):
     """Get functional MRI data (GET) - Retrieve a functional MRI data object
     from the database.
     """
     # Return Json serialization of object. The API throws ResourceNotFound
     # excpetion if the given object identifier does not reference an existing
     # functional MRI data object.
-    return jsonify(sco.get_object(object_id, datastore.OBJ_FMRI_DATA))
+    return jsonify(sco.get_object(
+        datastore.ObjectId([experiment_id, fmri_id]),
+        datastore.OBJ_FMRI_DATA
+    ))
 
 
-@app.route('/fmris/<string:object_id>/properties', methods=['POST'])
-def upsert_fmri_property(object_id):
+@app.route('/experiments/<string:experiment_id>/fmri/<string:fmri_id>/properties', methods=['POST'])
+def upsert_fmri_property(experiment_id, fmri_id):
     """Upsert functional MRI data object (POST) - Upsert a property of a
     functional MRI data object in the database.
     """
+    # The object identifier is a tuple of experiment and fmri identifier
+    object_id = (experiment_id, fmri_id)
     # Upsert the object property. If response code indicates whether the
     # property was created, updated, or deleted. Method throws InvalidRequest
     # or ResourceNotFound exceptions if necessary.
-    code = upsert_object_property(request, object_id, datastore.OBJ_FMRI_DATA)
+    code = upsert_object_property(
+        request,
+        datastore.ObjectId([experiment_id, fmri_id]),
+        datastore.OBJ_FMRI_DATA
+    )
     return '', code
 
 
-@app.route('/fmris/<string:object_id>/data')
-def download_fmri(object_id):
+@app.route('/experiments/<string:experiment_id>/fmri/<string:fmri_id>/data')
+def download_fmri(experiment_id, fmri_id):
     """Download functional MRI data (GET) - Download data of previously uploaded
     functional MRI data.
     """
     # Get download information for given object. Method raises ResourceNotFound
     # exception if object does not exists or does not have any downloadable
     # representation.
-    directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_FMRI_DATA)
+    print 'DOWNLOAD'
+    directory, filename, mime_type = sco.get_download(
+        datastore.ObjectId([experiment_id, fmri_id]),
+        datastore.OBJ_FMRI_DATA
+    )
+    print directory
+    print filename
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -243,6 +273,11 @@ def download_fmri(object_id):
         as_attachment=True,
         attachment_filename=filename
     )
+
+
+# ------------------------------------------------------------------------------
+# Prediction Data
+# ------------------------------------------------------------------------------
 
 
 # ------------------------------------------------------------------------------
@@ -256,46 +291,56 @@ def list_images():
     return jsonify(list_objects(request, datastore.OBJ_IMAGE))
 
 
-@app.route('/images/files/<string:object_id>', methods=['GET'])
-def get_image(object_id):
+@app.route('/images/files/<string:image_id>', methods=['GET'])
+def get_image(image_id):
     """Get image (GET) - Retrieve an image object from the database."""
     # Return Json serialization of object. The API throws ResourceNotFound
     # excpetion if the given object identifier does not reference an existing
     # image object.
-    return jsonify(sco.get_object(object_id, datastore.OBJ_IMAGE))
+    return jsonify(sco.get_object(
+        datastore.ObjectId(image_id),
+        datastore.OBJ_IMAGE)
+    )
 
 
-@app.route('/images/files/<string:object_id>/properties', methods=['POST'])
-def upsert_image_property(object_id):
+@app.route('/images/files/<string:image_id>/properties', methods=['POST'])
+def upsert_image_property(image_id):
     """Upsert image object (POST) - Upsert a property of an image object in the
     database.
     """
     # Upsert the object property. If response code indicates whether the
     # property was created, updated, or deleted. Method throws InvalidRequest
     # or ResourceNotFound exceptions if necessary.
-    code = upsert_object_property(request, object_id, datastore.OBJ_IMAGE)
+    code = upsert_object_property(
+        request,
+        datastore.ObjectId(image_id),
+        datastore.OBJ_IMAGE
+    )
     return '', code
 
 
-@app.route('/images/files/<string:object_id>', methods=['DELETE'])
-def delete_image(object_id):
+@app.route('/images/files/<string:image_id>', methods=['DELETE'])
+def delete_image(image_id):
     """Delete image object (DELETE) - Delete an image object from the
     database.
     """
     # Delete image object with given identifier and return 204. The API
     # will throw ResourceNotFound exception if the given identifier does not
     # reference an existing image.
-    sco.delete_object(object_id, datastore.OBJ_IMAGE)
+    sco.delete_object(datastore.ObjectId(image_id), datastore.OBJ_IMAGE)
     return '', 204
 
 
-@app.route('/images/files/<string:object_id>/data')
-def download_image(object_id):
+@app.route('/images/files/<string:image_id>/data')
+def download_image(image_id):
     """Download image file (GET)"""
     # Get download information for given object. Method raises ResourceNotFound
     # exception if object does not exists or does not have any downloadable
     # representation.
-    directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_IMAGE)
+    directory, filename, mime_type = sco.get_download(
+        datastore.ObjectId(image_id),
+        datastore.OBJ_IMAGE
+    )
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -317,34 +362,43 @@ def list_image_groups():
     return jsonify(list_objects(request, datastore.OBJ_IMAGEGROUP))
 
 
-@app.route('/images/groups/<string:object_id>', methods=['GET'])
-def get_image_group(object_id):
+@app.route('/images/groups/<string:image_group_id>', methods=['GET'])
+def get_image_group(image_group_id):
     """Get image group (GET) - Retrieve an image group from the database."""
     # Return Json serialization of object. The API throws ResourceNotFound
     # excpetion if the given object identifier does not reference an existing
     # image group object.
-    return jsonify(sco.get_object(object_id, datastore.OBJ_IMAGEGROUP))
+    return jsonify(sco.get_object(
+        datastore.ObjectId(image_group_id),
+        datastore.OBJ_IMAGEGROUP)
+    )
 
 
-@app.route('/images/groups/<string:object_id>', methods=['DELETE'])
-def delete_image_group(object_id):
+@app.route('/images/groups/<string:image_group_id>', methods=['DELETE'])
+def delete_image_group(image_group_id):
     """Delete image group (DELETE) - Delete an image group object from the
     database.
     """
     # Delete image group object with given identifier and return 204. The API
     # will throw ResourceNotFound exception if the given identifier does not
     # reference an existing image group.
-    sco.delete_object(object_id, datastore.OBJ_IMAGEGROUP)
+    sco.delete_object(
+        datastore.ObjectId(image_group_id),
+        datastore.OBJ_IMAGEGROUP
+    )
     return '', 204
 
 
-@app.route('/images/groups/<string:object_id>/data')
-def download_image_group(object_id):
+@app.route('/images/groups/<string:image_group_id>/data')
+def download_image_group(image_group_id):
     """Download image group file (GET)"""
     # Get download information for given object. Method raises ResourceNotFound
     # exception if object does not exists or does not have any downloadable
     # representation.
-    directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_IMAGEGROUP)
+    directory, filename, mime_type = sco.get_download(
+        datastore.ObjectId(image_group_id),
+        datastore.OBJ_IMAGEGROUP
+    )
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -355,8 +409,8 @@ def download_image_group(object_id):
     )
 
 
-@app.route('/images/groups/<string:object_id>/options', methods=['POST'])
-def update_image_group_options(object_id):
+@app.route('/images/groups/<string:image_group_id>/options', methods=['POST'])
+def update_image_group_options(image_group_id):
     """Upsert image group options (POST) - Upsert the options that are
     associated with an image group in the database. Given that these options
     cannot be included in the file upload, there has to be a separate API call.
@@ -373,19 +427,27 @@ def update_image_group_options(object_id):
     attributes = get_attributes(json_obj['options'])
     # Upsert object options. Method will raise InvalidRequest or
     # ResourceNotFound exceptions if necessary.
-    sco.update_object_attributes(object_id, datastore.OBJ_IMAGEGROUP, attributes)
+    sco.update_object_attributes(
+        datastore.ObjectId(image_group_id),
+        datastore.OBJ_IMAGEGROUP,
+        attributes
+    )
     return '', 200
 
 
-@app.route('/images/groups/<string:object_id>/properties', methods=['POST'])
-def upsert_image_group_property(object_id):
+@app.route('/images/groups/<string:image_group_id>/properties', methods=['POST'])
+def upsert_image_group_property(image_group_id):
     """Upsert image object (POST) - Upsert a property of an image group in the
     database.
     """
     # Upsert the object property. If response code indicates whether the
     # property was created, updated, or deleted. Method throws InvalidRequest
     # or ResourceNotFound exceptions if necessary.
-    code = upsert_object_property(request, object_id, datastore.OBJ_IMAGEGROUP)
+    code = upsert_object_property(
+        request,
+        datastore.ObjectId(image_group_id),
+        datastore.OBJ_IMAGEGROUP
+    )
     return '', code
 
 
@@ -432,50 +494,62 @@ def upload_subject():
     })
 
 
-@app.route('/subjects/<string:object_id>', methods=['GET'])
-def get_subject(object_id):
+@app.route('/subjects/<string:subject_id>', methods=['GET'])
+def get_subject(subject_id):
     """Get subject (GET) - Retrieve a brain anatomy MRI object from the
     database.
     """
     # Return Json serialization of object. The API throws ResourceNotFound
     # excpetion if the given object identifier does not reference an existing
     # subject data object.
-    return jsonify(sco.get_object(object_id, datastore.OBJ_SUBJECT))
+    return jsonify(sco.get_object(
+        datastore.ObjectId(subject_id),
+        datastore.OBJ_SUBJECT)
+    )
 
 
-@app.route('/subjects/<string:object_id>', methods=['DELETE'])
-def delete_subject(object_id):
+@app.route('/subjects/<string:subject_id>', methods=['DELETE'])
+def delete_subject(subject_id):
     """Delete Subject (DELETE) - Delete a brain anatomy MRI object from the
     database.
     """
     # Delete subject with given identifier and return 204. The API will throw
     # ResourceNotFound exception if the given identifier does not reference an
     # existing subject in the database.
-    sco.delete_object(object_id, datastore.OBJ_SUBJECT)
+    sco.delete_object(datastore.ObjectId(subject_id), datastore.OBJ_SUBJECT)
     return '', 204
 
 
-@app.route('/subjects/<string:object_id>/properties', methods=['POST'])
-def upsert_subject_property(object_id):
+@app.route('/subjects/<string:subject_id>/properties', methods=['POST'])
+def upsert_subject_property(subject_id):
     """Upsert subject object (POST) - Upsert a property of a brain anatomy MRI
     object in the database.
     """
     # Upsert the object property. If response code indicates whether the
     # property was created, updated, or deleted. Method throws InvalidRequest
     # or ResourceNotFound exceptions if necessary.
-    code = upsert_object_property(request, object_id, datastore.OBJ_SUBJECT)
+    code = upsert_object_property(
+        request,
+        datastore.ObjectId(subject_id),
+        datastore.OBJ_SUBJECT
+    )
     return '', code
 
 
-@app.route('/subjects/<string:object_id>/data')
-def download_subject(object_id):
+@app.route('/subjects/<string:subject_id>/data')
+def download_subject(subject_id):
     """Download subject (GET) - Download data of previously uploaded subject
     anatomy.
     """
     # Get download information for given object. Method raises ResourceNotFound
     # exception if object does not exists or does not have any downloadable
     # representation.
-    directory, filename, mime_type = sco.get_download(object_id, datastore.OBJ_SUBJECT)
+    directory, filename, mime_type = sco.get_download(
+        datastore.ObjectId(subject_id),
+        datastore.OBJ_SUBJECT
+    )
+    print directory
+    print filename
     # Send file in the object's upload folder
     return send_from_directory(
         directory,
@@ -598,7 +672,7 @@ def upsert_object_property(request, object_id, object_type):
     ----------
     request : flask.request
         Flask request object
-    object_id : string
+    object_id : datastore.ObjectId
         Unique object identifier
     object_type : string
         String representation of object type

@@ -53,7 +53,7 @@ class ResourceNotFound(APIRequestException):
 
         Parameters
         ----------
-        object_id : string
+        object_id : datastore.ObjectId
             Identifier of unknown resource
         object_type : string, optional
             Optional name of expected type of unknown resource
@@ -62,7 +62,7 @@ class ResourceNotFound(APIRequestException):
         message = 'unknown identifier'
         if not object_type is None:
             message += ' for type ' + object_type
-        message += ': ' + object_id
+        message += ': ' + repr(object_id)
         # Initialize the super class
         super(ResourceNotFound, self).__init__(message, 404)
 

@@ -36,15 +36,15 @@ class ExperimentHandle(datastore.DBObject):
 
         Parameters
         ----------
-        identifier : string
+        identifier : datastore.ObjectId
             Unique object identifier
         properties : Dictionary
             Dictionary of experiment specific properties
-        subject : string
+        subject : datastore.ObjectId
             Unique identifier of experiment subject
-        images: string
+        images: datastore.ObjectId
             Unique identifier of used image group
-        fmri_data : string, optional
+        fmri_data : datastore.ObjectId, optional
             Unique identifier of functional MRI data for experiment subject
         timestamp : datetime, optional
             Time stamp of object creation (UTC).
@@ -96,11 +96,11 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         ----------
         name : string
             User-provided name for the experiment
-        subject : string
+        subject : datastore.ObjectId
             Unique identifier of subject
-        images : string
+        images : datastore.ObjectId
             Unique identifier of image group
-        fmri_data : string, optional
+        fmri_data : datastore.ObjectId, optional
             Unique identifier of functional MRI data object
 
         Returns
@@ -109,7 +109,7 @@ class DefaultExperimentManager(datastore.MongoDBStore):
             Handle for created experiment object in database
         """
         # Create a new object identifier.
-        identifier = str(uuid.uuid4())
+        identifier = datastore.ObjectId(str(uuid.uuid4()))
         # Create the initial set of properties for the new experiement object.
         properties = {datastore.PROPERTY_NAME: name}
         # Create object handle and store it in database before returning it
@@ -130,13 +130,13 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         ExperimentHandle
             Handle for experiment object
         """
-        identifier = str(document['_id'])
+        identifier = datastore.ObjectId(document['identifier'])
         active = document['active']
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
-        subject = document['subject']
-        images = document['images']
-        fmri_data = document['fmri'] if 'fmri' in document else None
+        subject = datastore.ObjectId(document['subject'])
+        images = datastore.ObjectId(document['images'])
+        fmri_data = datastore.ObjectId(document['fmri']) if 'fmri' in document else None
         return ExperimentHandle(
             identifier,
             properties,
@@ -164,8 +164,8 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         # Get the basic Json object from the super class
         json_obj = super(DefaultExperimentManager, self).to_json(experiment)
         # Add associated object references
-        json_obj['subject'] = experiment.subject
-        json_obj['images'] = experiment.images
+        json_obj['subject'] = experiment.subject.keys
+        json_obj['images'] = experiment.images.keys
         if not experiment.fmri_data is None:
-            json_obj['fmri'] = experiment.fmri_data
+            json_obj['fmri'] = experiment.fmri_data.keys
         return json_obj
