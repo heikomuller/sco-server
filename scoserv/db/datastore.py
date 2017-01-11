@@ -18,32 +18,6 @@ import re
 #
 # ------------------------------------------------------------------------------
 
-"""Object types: Every class that extends DBObject should register a unique
-object type here."""
-
-# Experimental setup object
-OBJ_EXPERIMENT = 'EXPERIMENT'
-# Functional Data object
-OBJ_FMRI_DATA = 'FMRI'
-# Single Image Object
-OBJ_IMAGE = 'IMAGE'
-# Collection of images
-OBJ_IMAGEGROUP = 'IMG_GROUP'
-# Model run prediction output
-OBJ_PREDICTION = 'PREDICTION'
-# Subject anatomy object
-OBJ_SUBJECT = 'SUBJECT'
-
-# Set of valid object types.
-OBJECT_TYPES = set([
-    OBJ_EXPERIMENT,
-    OBJ_FMRI_DATA,
-    OBJ_IMAGE,
-    OBJ_IMAGEGROUP,
-    OBJ_PREDICTION,
-    OBJ_SUBJECT
-])
-
 """ Object properties: Definition of general properties that can be associated
 with a database object."""
 
@@ -55,6 +29,8 @@ PROPERTY_FILETYPE = 'filetype'
 PROPERTY_MIMETYPE = 'mimetype'
 # Descriptive name (mandatory for all database objects)
 PROPERTY_NAME = 'name'
+# Object state
+PROPERTY_STATE = 'state'
 
 """Return codes for operations that manipulate a set of properties."""
 
@@ -74,82 +50,46 @@ OP_UPDATED = 3
 #
 # ------------------------------------------------------------------------------
 
-class ObjectId(object):
-    """Identifier for database objects. Identifiers are given by a list (or
-    tuple) of values. For weak entities the list contains more than one element
-    while strong entities have only a single element.
+class ObjectHandle(object):
+    """Base implementation of object handles to access and manipulate database
+    objects. Each handle contains the object identifier, type, and a set of
+    object-specific properties represented as a dictionary of key,value-pairs.
 
-    The concatenation of all key values in the identifier list is assumed to
-    be a single unique identifier for the object.
-
-    Attributes
-    ----------
-    keys : List(string)
-        List of identifier.
-    """
-    def __init__(self, keys):
-        # At the moment the argument can be a single string, a tuple of strings,
-        # or a list of string. Convert the given value into a list of strings
-        if isinstance(keys, basestring):
-            self.keys = [keys]
-        elif isinstance(keys, tuple):
-            self.keys = list(keys)
-        elif isinstance(keys, list):
-            self.keys = keys
-        else:
-            raise ValueError('invalid type for object keys')
-        # Ensure that none of the key values contains the delimiter that is used
-        # to build the identifier representation
-        for key in self.keys:
-            if self.delimiter in key:
-                raise ValueError('invaid key value: ' + key)
-
-    def __repr__(self):
-        """String representation for list of keys. This is a concatenation of
-        elements in the list of keys.
-
-        Returns
-        -------
-        string
-            Global unique string identifier
-        """
-        return self.delimiter.join(self.keys)
-
-    @property
-    def delimiter(self):
-        """Deliminator used when concatenating identifier components to build
-        unique identifier representation. Currently, the concatenation delimiter
-        is '#'
-
-        Returns
-        -------
-        string
-            Concatenation delimiter used for identifier representation
-        """
-        return '#'
-
-class DBObject(object):
-    """Database Object - Base implementation of database objects. Contains the
-    object identifier, type, and set of object-specific properties.
+    For each class of objects accessible in the SCO Data Store and sub-class
+    of object handle is generated. To allow type checking of objects include
+    a is_type property in this base class and set the return value to True in
+    the aub-class.
 
     Attributes
     ----------
-    identifier : ObjectId
+    identifier : string
         Unique object identifier
-    type : string
-        String representation of object type (has to be in OBJECT_TYPES)
     timestamp : datetime
         Time stamp of object creation (UTC time). If None, the current
         date and time is used.
     properties : Dictionary
         Dictionary of object specific properties. Definition of mandatory
         and immutable properties are part of the object store that manages
-        objects of sub-classes that extend DBObject.
+        objects of sub-classes that extend the object handle.
     is_active : Boolean
         Flag indicating whether the object is active or has been deleted.
 
+    Properties
+    ----------
+    is_experiment : Booloean
+        True, if object is ExperimentHandle.
+    is_functional_data : Boolean
+        True, if object is FunctionalDataHandle.
+    is_image : Boolean
+        True, if object is ImageHandle.
+    is_image_group : Boolean
+        True, if object is ImageGroupHandle.
+    is_prediction : Boolean
+        True, if object is PredictionHandle.
+    is_subject : Boolean
+        True, if object is SubjectHandle.
     """
-    def __init__(self, identifier, type, timestamp, properties, is_active=True):
+    def __init__(self, identifier, timestamp, properties, is_active=True):
         """Initialize identifier, type, timestamp, and properties. Raises an
         exception if the given type is not a valid object type or if the
         manadatory property NAME is missing.
@@ -161,27 +101,21 @@ class DBObject(object):
         ----------
         identifier : ObjectId
             Unique object identifier
-        type : string
-            String representation of object type (has to be in OBJECT_TYPES)
         timestamp : datetime
             Time stamp of object creation (UTC time). If None, the current
             date and time is used.
         properties : Dictionary
             Dictionary of object specific properties. Definition of mandatory
             and immutable properties are part of the object store that manages
-            objects of sub-classes that extend DBObject.
+            objects of sub-classes that extend the object handle.
         is_active : Boolean, optional
             Flag indicating whether the object is active or has been deleted.
         """
-        # Ensure that type is a valid object type
-        if not type in OBJECT_TYPES:
-            raise UnknownObjectType(type)
         # Ensure that the properties contains the mandatory property NAME
         if not PROPERTY_NAME in properties:
             raise ValueError('missing property: ' + PROPERTY_NAME)
         # Initialize object variables
         self.identifier = identifier
-        self.type = type
         self.timestamp = timestamp or datetime.datetime.utcnow()
         self.properties = properties
         self.is_active = is_active
@@ -205,21 +139,23 @@ class DBObject(object):
         Returns
         -------
         Boolean
-            True, if object is of type OBJ_EXPERIMENT
+            True, if object is ExperimentHandle. By default the result is False
+            in the base class.
         """
-        return self.type == OBJ_EXPERIMENT
+        return False
 
     @property
-    def is_fmri_data(self):
+    def is_functional_data(self):
         """Flag indicating whether this object represents a functional MRI data
         object.
 
         Returns
         -------
         Boolean
-            True, if object is of type OBJ_FMRI_DATA
+            True, if object is FunctionalDataHadnle. By default the result is
+            False in the base class.
         """
-        return self.type == OBJ_FMRI_DATA
+        return False
 
     @property
     def is_image(self):
@@ -229,9 +165,10 @@ class DBObject(object):
         Returns
         -------
         Boolean
-            True, if object is of type OBJ_IMAGE
+            True, if object is ImageHandle.  By default the result is False
+            in the base class.
         """
-        return self.type == OBJ_IMAGE
+        return False
 
     @property
     def is_image_group(self):
@@ -240,20 +177,22 @@ class DBObject(object):
         Returns
         -------
         Boolean
-            True, if object is of type OBJ_IMAGEGROUP
+            True, if object isImageGroupHandle. By default the result is False
+            in the base class.
         """
-        return self.type == OBJ_IMAGEGROUP
+        return False
 
     @property
-    def is_prediction(self):
+    def is_model_run(self):
         """Flag indicating whether this object represents an prediction object.
 
         Returns
         -------
         Boolean
-            True, if object is of type OBJ_PREDICTION
+            True, if object is Predictionhandle. By default the result is False
+            in the base class.
         """
-        return self.type == OBJ_PREDICTION
+        return False
 
     @property
     def is_subject(self):
@@ -262,12 +201,13 @@ class DBObject(object):
         Returns
         -------
         Boolean
-            True, if object is of type OBJ_SUBJECT
+            True, if object is Subjecthandle. By default the result is False
+            in the base class.
         """
-        return self.type == OBJ_SUBJECT
+        return False
 
 
-class DataObject(DBObject):
+class DataObjectHandle(ObjectHandle):
     """Data objects are database objects that have a directory on the local
     file system associated with them. The contents of these directories are
     dependent on the implementing object type. The directory should contain
@@ -277,10 +217,23 @@ class DataObject(DBObject):
     for example). This is done to avoid exposing the directory name to the
     outside world via the Web API that gives access to object properties. It
     also makes it easier to change directories (i.e., move data locally) without
-    the need to update the underlying data store."""
-    def __init__(self, identifier, type, timestamp, properties, directory, is_active=True):
+    the need to update the underlying data store.
+
+    Attributes
+    ----------
+    directory : string
+        (Absolute) path to local directory containing object's data files.
+    """
+    def __init__(self, identifier, timestamp, properties, directory, is_active=True):
+        """Initialize basic handle properties and data directory.
+
+        Parameters
+        ----------
+        directory : string
+            (Absolute) path to local directory containing object's data files.
+        """
         # Initialize the super class
-        super(DataObject, self).__init__(identifier, type, timestamp, properties, is_active=is_active)
+        super(DataObjectHandle, self).__init__(identifier, timestamp, properties, is_active=is_active)
         # Set the objects data directory. The directory should be an absolute
         # path. However, this is not enforeced at this point.
         self.directory = directory
@@ -295,8 +248,8 @@ class ObjectListing(object):
 
         Parameters
         ----------
-        items : List(DBObject)
-            List of objects that are subclass of DBObject.
+        items : List(ObjectHandle)
+            List of objects that are subclass of ObjectHandle.
         total_count : int
             Total number of object's of this type in the database. This number
             may be different from the size of the items list, which may only
@@ -318,9 +271,9 @@ class ObjectStore(object):
     objects. Each object store should implement the following interface methods:
 
     delete_object(identifier::string) -> True|False
-    get_object(identifier::string) -> (Subclass of)DBObject
+    get_object(identifier::string) -> (Subclass of)ObjectHandle
     list_objects(limit=-1, offset=-1) -> ObjectListing
-    replace_object(object::(Subclass of)DBObject)
+    replace_object(object::(Subclass of)ObjectHandle)
     update_object_property(identifier::string, key::string, value::string)
 
     Attributes
@@ -330,16 +283,25 @@ class ObjectStore(object):
     mandatory_properties : List(string)
         List the names of mandatory properties
     """
-    def __init__(self):
+    def __init__(self, properties=[]):
         """Initialize the set of immutable and manadatory properties.
         Sub-classes may add properties to this set. Note that immutable
         properties not necessarily have to exist (not mandatory).
+
+        Parameters
+        ----------
+        properties : List(String)
+            List of manadatory and immutable properties
         """
         # List of properties that caannot be updated
         self.immutable_properties = set()
         # List of properties that are mandatory for all object in the object
         # store.
         self.mandatory_properties = set([PROPERTY_NAME])
+        # Set immutable and mandatory properties
+        for prop in properties:
+            self.immutable_properties.add(prop)
+            self.mandatory_properties.add(prop)
 
     @abstractmethod
     def delete_object(self, identifier):
@@ -353,7 +315,7 @@ class ObjectStore(object):
 
         Returns
         -------
-        (Sub-class of)DBObject
+        (Sub-class of)ObjectHandle
         """
         pass
 
@@ -406,7 +368,7 @@ class ObjectStore(object):
 
         Returns
         -------
-        (Subclass of)DBObject
+        (Subclass of)ObjectHandle
         """
         pass
 
@@ -435,7 +397,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        object : (Subclass of)DBObject
+        object : (Subclass of)ObjectHandle
             Replacement object. The original is identified by the unique
             object identifier.
         """
@@ -473,7 +435,7 @@ class ObjectStore(object):
         int
         """
         # Retrieve the object with the gievn identifier. This is a (sub-)class
-        # of DBObject
+        # of ObjectHandle
         obj = self.get_object(identifier)
         if not obj is None:
             # If the update affects an immutable property return OP_ILLEGAL
@@ -514,15 +476,17 @@ class MongoDBStore(ObjectStore):
     collection : Collection
         Collection in MongoDB where object information is stored
     """
-    def __init__(self, mongo_collection):
+    def __init__(self, mongo_collection, properties=[]):
         """Initialize the MongoDB collection where objects are being stored.
 
         Parameters
         ----------
         mongo_collection : Collection
             Collection in MongoDB
+        properties : List(String)
+            List of manadatory and immutable properties
         """
-        super(MongoDBStore, self).__init__()
+        super(MongoDBStore, self).__init__(properties)
         self.collection = mongo_collection
 
     def delete_object(self, identifier):
@@ -531,12 +495,12 @@ class MongoDBStore(ObjectStore):
 
         Parameters
         ----------
-        identifier : ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
         -------
-        (Sub-class of)DBObject
+        (Sub-class of)ObjectHandle
         """
         # Get object to ensure that it exists.
         db_object = self.get_object(identifier)
@@ -544,7 +508,7 @@ class MongoDBStore(ObjectStore):
         if not db_object is None:
             # Delete object with given identifier. Result contains object count
             # to determine if the object existed or not
-            self.collection.update_one({"_id": repr(identifier)}, {'$set' : {'active' : False}})
+            self.collection.update_one({"_id": identifier}, {'$set' : {'active' : False}})
         # Return retrieved object or None if it didn't exist.
         return db_object
 
@@ -563,7 +527,7 @@ class MongoDBStore(ObjectStore):
         """
         # Return True if query for object identifier with active flag on returns
         # a result.
-        return self.collection.find({'_id': repr(identifier), 'active' : True}).count() > 0
+        return self.collection.find({'_id': identifier, 'active' : True}).count() > 0
 
     @abstractmethod
     def from_json(self, document):
@@ -576,7 +540,7 @@ class MongoDBStore(ObjectStore):
             Json representation of the object
 
         Returns
-        (Sub-class of)DBObject
+        (Sub-class of)ObjectHandle
         """
         pass
 
@@ -594,13 +558,13 @@ class MongoDBStore(ObjectStore):
 
         Returns
         -------
-        (Sub-class of)DBObject
+        (Sub-class of)ObjectHandle
             The database object with given identifier or None if no object
             with identifier exists.
         """
         # Find all objects with given identifier. The result size is expected
         # to be zero or one
-        query = {'_id': repr(identifier)}
+        query = {'_id': identifier}
         if not include_inactive:
             query['active'] = True
         cursor = self.collection.find(query)
@@ -614,7 +578,7 @@ class MongoDBStore(ObjectStore):
 
         Parameters
         ----------
-        db_object : (Sub-class of)DBObject
+        db_object : (Sub-class of)ObjectHandle
         """
         # Create object using the  to_json() method. Use the object
         # identifier as ObjectId.
@@ -622,7 +586,7 @@ class MongoDBStore(ObjectStore):
         obj['active'] = True
         self.collection.insert_one(obj)
 
-    def list_objects(self, query=None, limit=-1, offset=-1, parent_id=None):
+    def list_objects(self, query=None, limit=-1, offset=-1):
         """List of all objects in the database. Optinal parameter limit and
         offset for pagination. A dictionary of key,value-pairs can be given as
         query for object properties.
@@ -635,8 +599,6 @@ class MongoDBStore(ObjectStore):
             Limit number of items in the result set
         offset : int
             Set offset in list (order as defined by object store)
-        parent_id : datastore.ObjectId, optional
-            Parent object identifier for weak entities.
 
         Returns
         -------
@@ -648,10 +610,6 @@ class MongoDBStore(ObjectStore):
         if not query is None:
             for key in query:
                 doc['properties.' + key] = query[key]
-        # Add a regular expression to the query that filters based on _id prefix
-        # defined by given parent identifier (if given).
-        if not parent_id is None:
-            doc['_id'] = re.compile(repr(parent_id) + parent_id.delimiter)
         # Iterate over all objects in the MongoDB collection and add them to
         # the result
         coll = self.collection.find(doc).sort([('timestamp', pymongo.DESCENDING)])
@@ -672,14 +630,14 @@ class MongoDBStore(ObjectStore):
 
         Parameters
         ----------
-        db_object : (Sub-class of)DBObject
+        db_object : (Sub-class of)ObjectHandle
             Replacement object
         """
         # To enable provenance traces objects are not actually deleted from the
         # database. Instead, their active flag is set to False.
         obj = self.to_json(db_object)
         obj['active'] = True
-        self.collection.replace_one({'_id' : repr(db_object.identifier), 'active' : True}, obj)
+        self.collection.replace_one({'_id' : db_object.identifier, 'active' : True}, obj)
 
     def to_json(self, db_obj):
         """Create a Json-like dictionary for objects managed by this object
@@ -687,20 +645,16 @@ class MongoDBStore(ObjectStore):
 
         Parameters
         ----------
-        db_obj : (Sub-class of)DBObject
+        db_obj : (Sub-class of)ObjectHandle
 
         Returns
         -------
         (JSON)
             Json-like object, i.e., dictionary.
         """
-        # Make sure to use the string representation of the object identifier
-        # as document identifier. Include the identifier's keys in the document
-        # that is stored in the database (only if there is more than one key,
-        # i.e., the identifier cannot be generated from the document _id.
+        # Base Json serialization for database objects
         return {
-            '_id' : repr(db_obj.identifier),
-            'identifier' : db_obj.identifier.keys,
+            '_id' : db_obj.identifier,
             'timestamp' : str(db_obj.timestamp.isoformat()),
             'properties' : db_obj.properties}
 
@@ -731,7 +685,7 @@ class DefaultObjectStore(MongoDBStore):
             List of manadatory and immutable properties
         """
         # Set the MongoDB collection of the super class
-        super(DefaultObjectStore, self).__init__(mongo_collection)
+        super(DefaultObjectStore, self).__init__(mongo_collection, properties)
         # Raise an exception if the base directory does not exist or is not
         # a directory
         if not os.access(base_directory, os.F_OK):
@@ -739,10 +693,6 @@ class DefaultObjectStore(MongoDBStore):
         if not os.path.isdir(base_directory):
             raise ValueError('Not a directory: ' + base_directory)
         self.directory = base_directory
-        # Set immutable and mandatory properties
-        for prop in properties:
-            self.immutable_properties.add(prop)
-            self.mandatory_properties.add(prop)
 
 
     def get_download(self, identifier):

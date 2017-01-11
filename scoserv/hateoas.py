@@ -181,7 +181,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -197,7 +197,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -212,7 +212,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -220,7 +220,7 @@ class ObjectUrls(object):
         string
             Resource Url
         """
-        return self.list() + '/' + identifier.keys[0]
+        return self.list() + '/' + identifier
 
     def list(self):
         """Get Url for object listing. This is also the base URL for all other
@@ -238,7 +238,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -254,7 +254,7 @@ class ObjectUrls(object):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique functional data object identifier
 
         Returns
@@ -290,7 +290,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique fMRI data object identifier
 
         Returns
@@ -306,7 +306,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique fMRI data object identifier
 
         Returns
@@ -314,7 +314,7 @@ class ExperimentUrls(ObjectUrls):
         string
             Functional data object URL
         """
-        return self.fmris_upload(identifier) + '/' + identifier.keys[-1]
+        #return self.fmris_upload(identifier) + '/' + identifier.keys[-1]
 
     def fmris_upload(self, identifier):
         """ Get Url to upload a functional MRI data file and associate it with
@@ -322,7 +322,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique experiment object identifier
 
         Returns
@@ -338,7 +338,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique fMRI data object identifier
 
         Returns
@@ -354,7 +354,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique model run object identifier
 
         Returns
@@ -369,7 +369,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique model run object identifier
 
         Returns
@@ -385,7 +385,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique model run object identifier
 
         Returns
@@ -401,7 +401,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique model run object identifier
 
         Returns
@@ -409,7 +409,7 @@ class ExperimentUrls(ObjectUrls):
         string
             Retrieve model run URL
         """
-        return self.predictions_list(identifier) + '/' + identifier.keys[-1]
+        #return self.predictions_list(identifier) + '/' + identifier.keys[-1]
 
     def predictions_list(self, identifier):
         """ Get Url to get a listing of all a model run objects that are
@@ -417,7 +417,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique model run object identifier
 
         Returns
@@ -433,7 +433,7 @@ class ExperimentUrls(ObjectUrls):
 
         Parameters
         ----------
-        identifier : db.datastore.ObjectId
+        identifier : string
             Unique model run object identifier
 
         Returns
@@ -513,7 +513,7 @@ class HATEOASReferenceFactory:
 
         Parameters
         ----------
-        db_obj : (subclass of)datastore.DBObject
+        db_obj : (subclass of)datastore.ObjectHandle
 
         Returns
         -------
@@ -533,10 +533,10 @@ class HATEOASReferenceFactory:
             links['predictions.create'] = self.urls.experiments.predictions_create(db_obj.identifier)
             links['predictions.list'] = self.urls.experiments.predictions_list(db_obj.identifier)
             links['upsert'] = self.urls.experiments.upsert_property(db_obj.identifier)
-        elif db_obj.is_fmri_data:
+        elif db_obj.is_functional_data:
             links['download'] = self.urls.experiments.fmris_download(db_obj.identifier)
             links['upsert'] = self.urls.experiments.fmris_upsert_property(db_obj.identifier)
-        elif db_obj.is_prediction:
+        elif db_obj.is_model_run:
             # Only include download link if model run finished successfully
             if db_obj.is_success:
                 links['download'] = self.urls.experiments.predictions_download(db_obj.identifier)
@@ -560,7 +560,7 @@ class HATEOASReferenceFactory:
 
         Parameters
         ----------
-        db_obj : (subclass of)datastore.DBObject
+        db_obj : (subclass of)datastore.ObjectHandle
 
         Returns
         -------
@@ -575,9 +575,9 @@ class HATEOASReferenceFactory:
             ref = self.urls.subjects.get(db_obj.identifier)
         elif db_obj.is_experiment:
             ref = self.urls.experiments.get(db_obj.identifier)
-        elif db_obj.is_fmri_data:
+        elif db_obj.is_functional_data:
             ref = self.urls.experiments.fmris_get(db_obj.identifier)
-        elif db_obj.is_prediction:
+        elif db_obj.is_model_run:
             ref = self.urls.experiments.predictions_get(db_obj.identifier)
         elif db_obj.is_image:
             ref = self.urls.images.get(db_obj.identifier)

@@ -1,7 +1,8 @@
-# Standard Cortical Observer - Web API
+# Standard Cortical Observer - Data Store Web API
 
-Web API to access different resources managed by the Standard Cortical Observer.
-At this stage the API primarily gives access to resources that are needed to
-run predictions (i.e., subject, images, experiments, and functional data). The
-functionality needed to run a model will either be added or be part of a
-separate API that exposes access to a simple workflow engine.
+Web API to access resources (e.g. images, subject anatomies) managed by the
+Standard Cortical Observer Data Store.
+
+The API is intended to provide access to resources that are input to run a
+predictive model (i.e., subject, images, experiments, and functional data) as
+well as outputs from model runs (i.e., predictions).

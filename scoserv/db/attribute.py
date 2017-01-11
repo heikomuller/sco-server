@@ -280,6 +280,37 @@ class IntegerType(AttributeType):
 #
 # ------------------------------------------------------------------------------
 
+def get_and_validate_attributes(attributes, attr_defs):
+    """Create a dictionary of options from the attribute list. The dictionary
+    allows to detect duplicate definitions of the same attribute. Raises
+    exception if attribute list is not in accordance with attribute
+    definitions.
+
+    Parameters
+    ----------
+    attributes : List(attribute.Attribute), optional
+        List of image group options. If None, default values will be used.
+    attr_defs : Dictionary(attribute.AttributeDefinition)
+        Dictionary of attribute definitions to validate agains.
+
+    Returns
+    -------
+    Dictionary
+        Dictionary of attribute instances keyed by their name
+    """
+    options = {}
+    for attr in attributes:
+        if attr.name in options:
+            raise ValueError('duplicate attribute: ' + attr.name)
+        if not attr.name in attr_defs:
+            raise ValueError('unknown attribute: ' + attr.name)
+        attr_def = attr_defs[attr.name]
+        if not attr_def.validate(attr.value):
+            raise ValueError('invalid value for attribute: ' + attr.name)
+        options[attr.name] = attr
+    return options
+
+
 def get_default_attributes(attr_definitions):
     """Generate a dictionary of attribute values from a set of attribute
     definitions using default values.

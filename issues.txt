@@ -1,0 +1,4 @@
+If the fMRI data object of an experiment is updated, any existing object
+previously associated with the experiment will no longer be referenced from
+any object (potentially -> Can multiple experiments reference the same fMRI
+object?).

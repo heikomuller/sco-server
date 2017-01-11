@@ -33,12 +33,17 @@ VALID_IMGFILE_SUFFIXES = {
 #
 # ------------------------------------------------------------------------------
 
-class ImageHandle(datastore.DataObject):
-    """Image Handle - Handle to access and manipulate an image file. Each object
-    has an unique identifier, the timestamp of it's creation, a list of
-    properties, and a reference to the (unique) directory where the image file
-    is stored on disk. File name and Mime type of the image are part of the
-    mandatory, immutable set of image properties.
+class ImageHandle(datastore.DataObjectHandle):
+    """Handle to access and manipulate an image file. Each object has an unique
+    identifier, the timestamp of it's creation, a list of properties, and a
+    reference to the (unique) directory where the image file is stored on disk.
+    File name and Mime type of the image are part of the mandatory, immutable
+    set of image properties.
+
+    Attributes
+    ----------
+    image_file : string
+        Absolute path to image file on local disk
     """
     def __init__(self, identifier, properties, directory, timestamp=None, is_active=True):
         """Initialize the image handle. The directory references a directory
@@ -47,7 +52,7 @@ class ImageHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -61,19 +66,25 @@ class ImageHandle(datastore.DataObject):
         # Initialize super class
         super(ImageHandle, self).__init__(
             identifier,
-            datastore.OBJ_IMAGE,
             timestamp,
             properties,
             directory,
             is_active=is_active
         )
+        # Set path to image file on local disk
+        self.image_file = os.path.join(self.directory, self.properties[datastore.PROPERTY_FILENAME])
+
+    @property
+    def is_image(self):
+        """Override the is_image property of the base class."""
+        return True
 
 
-class ImageGroupHandle(datastore.DataObject):
-    """Image Group Handle - Handle to access and manipulate a collection of
-    image files. Each collection has an unique identifier, the timestamp of it's
-    creation, a list of properties, a reference to the directory where a zipped
-    tar-file conatining images in the group is stored.
+class ImageGroupHandle(datastore.DataObjectHandle):
+    """Handle to access and manipulate a collection of image files. Each
+    collection has an unique identifier, the timestamp of it's creation, a
+    list of properties, a reference to the directory where a zipped tar-file
+    containing images in the group is stored.
 
     In addition to the general data object properties, image groups contain a
     list of object identifier for image objects in the collection.
@@ -90,7 +101,7 @@ class ImageGroupHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -108,7 +119,6 @@ class ImageGroupHandle(datastore.DataObject):
         # Initialize super class
         super(ImageGroupHandle, self).__init__(
             identifier,
-            datastore.OBJ_IMAGEGROUP,
             timestamp,
             properties,
             directory,
@@ -118,10 +128,15 @@ class ImageGroupHandle(datastore.DataObject):
         self.images = images
         self.options = options
 
+    @property
+    def is_image_group(self):
+        """Override the is_image_group property of the base class."""
+        return True
+
 
 class GroupImage(object):
     """Descriptor for images in an image group - Each image in an image group
-    has a name and folder. Together they for a unique identifier of the image,
+    has a name and folder. Together they form a unique identifier of the image,
     just like the image identifier that is also part of the group image object.
 
     Attributes
@@ -138,10 +153,10 @@ class GroupImage(object):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique identifier of the image
         folder : string
-            (Sub-)folder in the grouop (default: /)
+            (Sub-)folder in the group (default: /)
         name : string
             Image name (unique within the folder)
         """
@@ -190,7 +205,8 @@ class DefaultImageManager(datastore.DefaultObjectStore):
         )
 
     def create_object(self, filename):
-        """Create an image object on local disk from the given file.
+        """Create an image object on local disk from the given file. The file
+        be moved to the local directory of the created image object.
 
         Parameters
         ----------
@@ -213,7 +229,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
             if suffix in VALID_IMGFILE_SUFFIXES:
                 prop_mime = VALID_IMGFILE_SUFFIXES[suffix]
         if not prop_mime:
-            raise ValueError('Unsupported image type: ' + prop_name)
+            raise ValueError('unsupported image type: ' + prop_name)
         # Create a new object identifier.
         identifier = str(uuid.uuid4())
         # The sub-folder to store the image is given by the first two
@@ -231,7 +247,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
         # Move original file to object directory
         os.rename(filename, os.path.join(image_dir, prop_name))
         # Create object handle and store it in database before returning it
-        obj = ImageHandle(datastore.ObjectId(identifier), properties, image_dir)
+        obj = ImageHandle(identifier, properties, image_dir)
         self.insert_object(obj)
         return obj
 
@@ -249,13 +265,13 @@ class DefaultImageManager(datastore.DefaultObjectStore):
             Handle for image object
         """
         # Get object properties from Json document
-        identifier = datastore.ObjectId(document['identifier'])
+        identifier = str(document['_id'])
         active = document['active']
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
         # The directory is not materilaized in database to allow moving the
         # base directory without having to update the database.
-        directory = self.get_directory(repr(identifier))
+        directory = self.get_directory(identifier)
         # Cretae image handle
         return ImageHandle(identifier, properties, directory, timestamp=timestamp, is_active=active)
 
@@ -268,7 +284,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -277,8 +293,8 @@ class DefaultImageManager(datastore.DefaultObjectStore):
             Path to image objects data directory
         """
         return os.path.join(
-            os.path.join(self.directory, repr(identifier)[:2]),
-            repr(identifier)
+            os.path.join(self.directory, identifier[:2]),
+            identifier
         )
 
 
@@ -335,7 +351,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             )
         }
 
-    def create_object(self, name, images, filename):
+    def create_object(self, name, images, filename, options=None):
         """Create an image group object with the given list of images. The
         file name specifies the location on local disk where the tar-file
         containing the image group files is located.
@@ -348,6 +364,8 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             List of objects describing images in the group
         filename : string
             Location of local file containing all images in the group
+        options : List(attribute.Attribute), optional
+            List of image group options. If None, default values will be used.
 
         Returns
         -------
@@ -373,17 +391,21 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             os.makedirs(directory)
         # Move original file to object directory
         os.rename(filename, os.path.join(directory, prop_filename))
-        # The initial set of oprions is given by those options for which default
-        # values are defined.
-        options = attribute.get_default_attributes(self.options_def)
+        # If no options are given then the initial set of options is given by
+        # those options in the attribute definition list for which default values
+        # are defined.
+        if options is None:
+            opts = attribute.get_default_attributes(self.options_def)
+        else:
+            opts = attribute.get_and_validate_attributes(options, self.options_def)
         # Create the image group object and store it in the database before
         # returning it.
         obj = ImageGroupHandle(
-            datastore.ObjectId(identifier),
+            identifier,
             properties,
             directory,
             images,
-            options
+            opts
         )
         self.insert_object(obj)
         return obj
@@ -402,17 +424,17 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             Handle for image group object
         """
         # Get object attributes from Json document
-        identifier = datastore.ObjectId(document['identifier'])
+        identifier = str(document['_id'])
         # Create list of group images from Json
         images = list()
         for grp_image in document['images']:
             images.append(GroupImage(
-                datastore.ObjectId(grp_image['identifier']),
+                grp_image['identifier'],
                 grp_image['folder'],
                 grp_image['name']
             ))
         # Directories are simply named by object identifier
-        directory = os.path.join(self.directory, repr(identifier))
+        directory = os.path.join(self.directory, identifier)
         # Create image group handle.
         return ImageGroupHandle(
             identifier,
@@ -432,18 +454,18 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        image_id : datastore.ObjectId
+        image_id : string
             Unique identifierof image object
 
         Returns
         -------
-        List(datastore.ObjectId)
+        List(string)
             List of image collection identifier
         """
         result = []
         # Get all active collections that contain the image identifier
-        for document in self.collection.find({'active' : True, 'images.identifier' : image_id.keys}):
-            result.append(datastore.ObjectId(document['images.identifier']))
+        for document in self.collection.find({'active' : True, 'images.identifier' : image_id}):
+            result.append(str(document['_id']))
         return result
 
     def to_json(self, img_coll):
@@ -465,7 +487,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         images = []
         for img_group in img_coll.images:
             images.append({
-                'identifier' : img_group.identifier.keys,
+                'identifier' : img_group.identifier,
                 'folder' : img_group.folder,
                 'name' : img_group.name
             })
@@ -483,26 +505,14 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
         attributes : List(attribute.Attribute)
             List of attribute instances
         """
-        # Create a dictionary of options from the attribute list. The dictionary
-        # allows to detect duplicate definitions of the same attribute
-        options= {}
-        for attr in attributes:
-            if attr.name in options:
-                raise ValueError('duplicate attribute: ' + attr.name)
-            if not attr.name in self.options_def:
-                raise ValueError('unknown attribute: ' + attr.name)
-            attr_def = self.options_def[attr.name]
-            if not attr_def.validate(attr.value):
-                raise ValueError('invalid value for attribute: ' + attr.name)
-            options[attr.name] = attr
         # Retrieve object from database and replace existing options
         img_group = self.get_object(identifier)
-        img_group.options = options
+        img_group.options = attribute.get_and_validate_attributes(attributes, self.options_def)
         # Replace existing object in database
         self.replace_object(img_group)
 

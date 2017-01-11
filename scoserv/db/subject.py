@@ -44,11 +44,16 @@ FILE_TYPES = [FILE_TYPE_FREESURFER_DIRECTORY]
 # Database Objects
 #
 # ------------------------------------------------------------------------------
-class SubjectHandle(datastore.DataObject):
-    """Subject Handle - Handle to access and manipulate a brain anatomy object.
-    Each object has an unique identifier, the timestamp of it's creation, a list
-    of properties, a file type, and a reference to the directory on disk where
-    all anatomy files are being stored.
+
+class SubjectHandle(datastore.DataObjectHandle):
+    """Handle to access and manipulate a brain anatomy object. Each object has
+    an unique identifier, the timestamp of it's creation, a list of properties,
+    and a reference to the directory on disk where all anatomy files are being
+    stored.
+
+    For each anatomy object the list of properties must contain the file type
+    although in the current implementation only Freesurfer directories are
+    supported.
 
     Attributes
     ----------
@@ -64,7 +69,7 @@ class SubjectHandle(datastore.DataObject):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
         properties : Dictionary
             Dictionary of subject specific properties
@@ -84,7 +89,6 @@ class SubjectHandle(datastore.DataObject):
         # Initialize super class
         super(SubjectHandle, self).__init__(
             identifier,
-            datastore.OBJ_SUBJECT,
             timestamp,
             properties,
             directory,
@@ -93,6 +97,11 @@ class SubjectHandle(datastore.DataObject):
         # Set data and upload directory
         self.data_directory = os.path.join(directory, DATA_DIRECTORY)
         self.upload_directory = os.path.join(directory, UPLOAD_DIRECTORY)
+
+    @property
+    def is_subject(self):
+        """Override the is_subject property of the base class."""
+        return True
 
 
 # ------------------------------------------------------------------------------
@@ -149,7 +158,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -183,11 +192,11 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         SubjectHandle
             Handle for subject
         """
-        identifier = datastore.ObjectId(document['identifier'])
+        identifier = str(document['_id'])
         active = document['active']
         # The directory is not materilaized in database to allow moving the
         # base directory without having to update the database.
-        directory = os.path.join(self.directory, repr(identifier))
+        directory = os.path.join(self.directory, identifier)
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
         return SubjectHandle(identifier, properties, directory, timestamp=timestamp, is_active=active)
@@ -216,7 +225,8 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
 
     def upload_freesurfer_archive(self, filename):
         """Create an anatomy object on local disk from a Freesurfer anatomy
-        tar file.
+        tar file. If the given file is a Freesurfer file it will be moved to
+        the created subject's upload directory.
 
         Parameters
         ----------
@@ -245,7 +255,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         if not freesurf_dir:
             # Remove anatomy directory and extracted files
             shutil.rmtree(temp_dir)
-            raise ValueError('Not a valid subject directory')
+            raise ValueError('not a valid subject directory')
         # Create a new identifier. This identifier will be used as the
         # directory name.
         identifier = str(uuid.uuid4())
@@ -286,7 +296,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         shutil.rmtree(temp_dir)
         # Use current time in UTC as the object's timestamp
         obj = SubjectHandle(
-            datastore.ObjectId(identifier),
+            identifier,
             properties,
             subject_dir
         )
@@ -302,9 +312,11 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
 
 def get_freesurfer_dir(directory):
     """Test if a directory is a Freesurfer anatomy directory. Currently, the
-    only test is whether there are sub-folders with name 'surf' and 'mri'.
-    Processes all sub-folders recursively until a freesurfer directory is found.
-    If no matching folder is found the result is None
+    test is whether (1) there are sub-folders with name 'surf' and 'mri' and
+    (2) if the Freesurfer library method freesurfer_subject returns a non-None
+    result for the directory. Processes all sub-folders recursively until a
+    freesurfer directory is found. If no matching folder is found the result is
+    None.
 
     Parameters
     ----------
@@ -314,7 +326,7 @@ def get_freesurfer_dir(directory):
     Returns
     -------
     string
-        Sub-directory containing folders 'surf' and 'mri' or None if no such
+        Sub-directory containing a Freesurfer files or None if no such
         directory is found.
     """
     dir_files = [f for f in os.listdir(directory)]

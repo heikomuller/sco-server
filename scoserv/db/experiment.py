@@ -13,11 +13,11 @@ import datastore
 # Database Objects
 #
 # ------------------------------------------------------------------------------
-class ExperimentHandle(datastore.DBObject):
-    """Experiment Handle - Handle to access and manipulate an object
-    representing an experiment configuration. Each experiment encapsules a
-    subject, an image group, and an optional functional data object. For each
-    referenced object the unique object identifier is maintained.
+class ExperimentHandle(datastore.ObjectHandle):
+    """Handle to access and manipulate an object representing an experiment
+    configuration. Each experiment encapsulates a subject, an image group, and
+    an optional functional data object. For each referenced object the unique
+    object identifier is maintained.
 
     Attributes
     ----------
@@ -35,15 +35,15 @@ class ExperimentHandle(datastore.DBObject):
 
         Parameters
         ----------
-        identifier : datastore.ObjectId
+        identifier : string
             Unique object identifier
         properties : Dictionary
             Dictionary of experiment specific properties
-        subject : datastore.ObjectId
+        subject : string
             Unique identifier of experiment subject
-        images: datastore.ObjectId
+        images: string
             Unique identifier of used image group
-        fmri_data : datastore.ObjectId, optional
+        fmri_data : string, optional
             Unique identifier of functional MRI data for experiment subject
         timestamp : datetime, optional
             Time stamp of object creation (UTC).
@@ -53,7 +53,6 @@ class ExperimentHandle(datastore.DBObject):
         # Initialize super class
         super(ExperimentHandle, self).__init__(
             identifier,
-            datastore.OBJ_EXPERIMENT,
             timestamp,
             properties,
             is_active=is_active
@@ -63,6 +62,11 @@ class ExperimentHandle(datastore.DBObject):
         self.images = images
         self.fmri_data = fmri_data
 
+    @property
+    def is_experiment(self):
+        """Override the is_experiment property of the base class."""
+        return True
+
 
 # ------------------------------------------------------------------------------
 #
@@ -70,7 +74,9 @@ class ExperimentHandle(datastore.DBObject):
 #
 # ------------------------------------------------------------------------------
 class DefaultExperimentManager(datastore.MongoDBStore):
-    """Default Experiement Data Manager - Manager for experiment objects.
+    """Manager for experiment objects. Implements create_object method and
+    additional method to assign functional data obejct with an experiment after
+    it has been created.
 
     This is a default implentation that uses MongoDB as storage backend.
     """
@@ -95,11 +101,11 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         ----------
         name : string
             User-provided name for the experiment
-        subject : datastore.ObjectId
+        subject : string
             Unique identifier of subject
-        images : datastore.ObjectId
+        images : string
             Unique identifier of image group
-        fmri_data : datastore.ObjectId, optional
+        fmri_data : string, optional
             Unique identifier of functional MRI data object
 
         Returns
@@ -108,7 +114,7 @@ class DefaultExperimentManager(datastore.MongoDBStore):
             Handle for created experiment object in database
         """
         # Create a new object identifier.
-        identifier = datastore.ObjectId(str(uuid.uuid4()))
+        identifier = str(uuid.uuid4())
         # Create the initial set of properties for the new experiement object.
         properties = {datastore.PROPERTY_NAME: name}
         # Create object handle and store it in database before returning it
@@ -135,13 +141,13 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         ExperimentHandle
             Handle for experiment object
         """
-        identifier = datastore.ObjectId(document['identifier'])
+        identifier = str(document['_id'])
         active = document['active']
         timestamp = datetime.datetime.strptime(document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
         properties = document['properties']
-        subject = datastore.ObjectId(document['subject'])
-        images = datastore.ObjectId(document['images'])
-        fmri_data = datastore.ObjectId(document['fmri']) if 'fmri' in document else None
+        subject = document['subject']
+        images = document['images']
+        fmri_data = document['fmri'] if 'fmri' in document else None
         return ExperimentHandle(
             identifier,
             properties,
@@ -169,8 +175,34 @@ class DefaultExperimentManager(datastore.MongoDBStore):
         # Get the basic Json object from the super class
         json_obj = super(DefaultExperimentManager, self).to_json(experiment)
         # Add associated object references
-        json_obj['subject'] = experiment.subject.keys
-        json_obj['images'] = experiment.images.keys
+        json_obj['subject'] = experiment.subject
+        json_obj['images'] = experiment.images
         if not experiment.fmri_data is None:
-            json_obj['fmri'] = experiment.fmri_data.keys
+            json_obj['fmri'] = experiment.fmri_data
         return json_obj
+
+    def update_fmri_data(self, identifier, fmri_data):
+        """Associate the fMRI object with the identified experiment.
+
+        Parameters
+        ----------
+        identifier : string
+            Unique experiment object identifier
+        fmri_data : string
+            Unique fMRI data object identifier
+
+        Returns
+        -------
+        ExperimentHandle
+            Returns modified experiment object or None if no experiment with
+            the given identifier exists.
+        """
+        # Get experiment to ensure that it exists
+        experiment = self.get_object(identifier)
+        if experiment is None:
+            return None
+        # Update fmri_data property and replace existing object with updated one
+        experiment.fmri_data = fmri_data
+        self.replace_object(experiment)
+        # Return modified experiment
+        return experiment

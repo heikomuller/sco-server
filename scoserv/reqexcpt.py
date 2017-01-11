@@ -53,7 +53,7 @@ class ResourceNotFound(APIRequestException):
 
         Parameters
         ----------
-        object_id : datastore.ObjectId
+        object_id : string
             Identifier of unknown resource
         object_type : string, optional
             Optional name of expected type of unknown resource
@@ -62,13 +62,13 @@ class ResourceNotFound(APIRequestException):
         message = 'unknown identifier'
         if not object_type is None:
             message += ' for type ' + object_type
-        message += ': ' + repr(object_id)
+        message += ': ' + object_id
         # Initialize the super class
         super(ResourceNotFound, self).__init__(message, 404)
 
 
 class UnknownObjectType(InvalidRequest):
-    """Exception to signal that a DBObject of unknown type is encountered."""
+    """Exception to signal that a ObjectHandle of unknown type is encountered."""
     def __init__(self, object_type):
         """Initialize the exception with the unknown object type.
 

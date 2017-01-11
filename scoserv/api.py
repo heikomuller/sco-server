@@ -494,7 +494,7 @@ class DataServer:
 
         Returns
         -------
-        DBObject
+        ObjectHandle
             Handle for the modified database object.
         """
         # Depending on the object type different upload methods are invoked.
@@ -562,7 +562,7 @@ class DataServer:
 
         Returns
         -------
-        DBObject
+        ObjectHandle
             Handle for the modified image object.
         """
         # Check if file is a single image
@@ -655,10 +655,16 @@ class DataServer:
             filename = secure_filename(file.filename)
             upload_file = os.path.join(temp_dir, filename)
             file.save(upload_file)
-            db_obj = store.upload_file(upload_file)
-            # Delete the temporary folder
-            shutil.rmtree(temp_dir)
-            return db_obj
+            # Catch potential ValueError raised if file is not a correct
+            # subject file to be able to clean up
+            try:
+                db_obj = store.upload_file(upload_file)
+                # Delete the temporary folder
+                shutil.rmtree(temp_dir)
+                return db_obj
+            except ValueError:
+                shutil.rmtree(temp_dir)
+                os.remove(upload_file)
         else:
             # Not a valid file suffix
             raise excpt.InvalidRequest(
