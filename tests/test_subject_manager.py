@@ -12,9 +12,8 @@ sys.path.insert(0, os.path.abspath('..'))
 import scoserv.db.subject as subjects
 
 SUBJECT_DIR = '/tmp/sco/subjects'
-DATA_DIR = './data/subjects'
-SUBJECT_FILE = 'subject.tar.gz'
-FALSE_SUBJECT_FILE = 'false-subject.tar.gz'
+SUBJECT_FILE = './data/subjects/subject.tar.gz'
+FALSE_SUBJECT_FILE = './data/subjects/false-subject.tar.gz'
 
 class TestSubjectManagerMethods(unittest.TestCase):
 
@@ -32,9 +31,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         """Test creation of subject objects in the database through file
         upload."""
         # Create temp subject file
-        tmp_file = os.path.join(SUBJECT_DIR, SUBJECT_FILE)
-        shutil.copyfile(os.path.join(DATA_DIR, SUBJECT_FILE), tmp_file)
-        subject = self.mngr.upload_file(tmp_file)
+        subject = self.mngr.upload_file(SUBJECT_FILE)
         # Ensure that the created object is active
         self.assertTrue(subject.is_active)
         # Ensure that is_subject property s True
@@ -52,7 +49,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         # Ensure that the subjects uplaod directory is equal to upload_file
         # directory
         self.assertEquals(subject.upload_directory, upload_file)
-        upload_file = os.path.join(upload_file, SUBJECT_FILE)
+        upload_file = os.path.join(upload_file, os.path.basename(SUBJECT_FILE))
         self.assertTrue(os.path.isfile(upload_file))
         # Ensure that data directory exists and is a Freesurfer directory
         subject_dir = os.path.join(SUBJECT_DIR, subject.identifier)
@@ -63,7 +60,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         # Ensure that subjects can be created from uncompressed tar files
         # Create uncompressed copy of subject first
         tmp_file = os.path.join(SUBJECT_DIR, 's.tar')
-        f_in = gzip.open(os.path.join(DATA_DIR, SUBJECT_FILE), 'rb')
+        f_in = gzip.open(SUBJECT_FILE, 'rb')
         f_out = open(tmp_file, 'wb')
         f_out.write( f_in.read() )
         f_in.close()
@@ -79,16 +76,14 @@ class TestSubjectManagerMethods(unittest.TestCase):
         subject_dir = os.path.join(SUBJECT_DIR, subject.identifier)
         subject_dir = os.path.join(subject_dir, 'data')
         # Ensure that fake file upload raises exception
-        tmp_file = os.path.join(SUBJECT_DIR, FALSE_SUBJECT_FILE)
-        shutil.copyfile(os.path.join(DATA_DIR, FALSE_SUBJECT_FILE), tmp_file)
         with self.assertRaises(ValueError):
-            self.mngr.upload_file(tmp_file)
+            self.mngr.upload_file(FALSE_SUBJECT_FILE)
+        # Ensure that erase works as well
+        self.assertIsNotNone(self.mngr.delete_object(subject.identifier, erase=True))
 
     def test_subjects_get_list_delete(self):
         # Create temp subject file
-        tmp_file = os.path.join(SUBJECT_DIR, SUBJECT_FILE)
-        shutil.copyfile(os.path.join(DATA_DIR, SUBJECT_FILE), tmp_file)
-        subject = self.mngr.upload_file(tmp_file)
+        subject = self.mngr.upload_file(SUBJECT_FILE)
         # Ensure that there is exactly one subject in the database with the
         # same id as the created subject
         listing = self.mngr.list_objects()
@@ -96,8 +91,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         self.assertEqual(len(listing.items), 1)
         self.assertEqual(listing.items[0].identifier, subject.identifier)
         # Create a second subject from the same file
-        shutil.copyfile(os.path.join(DATA_DIR, SUBJECT_FILE), tmp_file)
-        subject = self.mngr.upload_file(tmp_file)
+        subject = self.mngr.upload_file(SUBJECT_FILE)
         # Ensure that the listing now has two elements
         listing = self.mngr.list_objects()
         self.assertEqual(listing.total_count, 2)
@@ -120,7 +114,9 @@ class TestSubjectManagerMethods(unittest.TestCase):
         self.assertIsNone(self.mngr.get_object(subject.identifier))
         # Ensure that deleting deleted object is None
         self.assertIsNone(self.mngr.delete_object(subject.identifier))
-
+        # Ensure that erase works as well
+        subject = self.mngr.upload_file(SUBJECT_FILE)
+        self.assertIsNotNone(self.mngr.delete_object(subject.identifier, erase=True))
 
 if __name__ == '__main__':
     unittest.main()

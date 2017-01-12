@@ -46,7 +46,9 @@ FILE_TYPES = [FILE_TYPE_FREESURFER_DIRECTORY]
 # ------------------------------------------------------------------------------
 
 class SubjectHandle(datastore.DataObjectHandle):
-    """Handle to access and manipulate a brain anatomy object. Each object has
+    """Handle to access and manipula    def download_subject(self, identifier):
+
+te a brain anatomy object. Each object has
     an unique identifier, the timestamp of it's creation, a list of properties,
     and a reference to the directory on disk where all anatomy files are being
     stored.
@@ -103,6 +105,17 @@ class SubjectHandle(datastore.DataObjectHandle):
         """Override the is_subject property of the base class."""
         return True
 
+    @property
+    def data_file(self):
+        """Original uploaded data file the subject was created from.
+
+        Returns
+        -------
+        File-type object
+            Reference to file on local disk
+        """
+        return os.path.join(self.upload_directory, self.properties[datastore.PROPERTY_FILENAME])
+
 
 # ------------------------------------------------------------------------------
 #
@@ -149,33 +162,6 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
             base_directory,
             properties
         )
-
-    def get_download(self, identifier):
-        """Get download information for object with given identifier.
-
-        THis method overrides the super class method because subjects are stored
-        in a different sub-folder.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique object identifier
-
-        Returns
-        -------
-        Tuple (string, string, string)
-            Returns directory, file name, and mime type of downloadable file.
-            Result contains all None if object does not exist.
-        """
-        # Retrieve subject from database. Abort if it does not exist.
-        subject = self.get_object(identifier)
-        if subject is None:
-            return None
-        # Return subjects upload directory, original file name, and mime type
-        directory = subject.upload_directory
-        filename = subject.properties[datastore.PROPERTY_FILENAME]
-        mime_type = subject.properties[datastore.PROPERTY_MIMETYPE]
-        return directory, filename, mime_type
 
     def from_json(self, document):
         """Create subject object from JSON document retrieved from database.
@@ -225,7 +211,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
 
     def upload_freesurfer_archive(self, filename):
         """Create an anatomy object on local disk from a Freesurfer anatomy
-        tar file. If the given file is a Freesurfer file it will be moved to
+        tar file. If the given file is a Freesurfer file it will be copied to
         the created subject's upload directory.
 
         Parameters
@@ -291,7 +277,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
             if os.path.isdir(sub_folder):
                 shutil.move(sub_folder, data_dir)
         # Move original upload file to upload directory
-        os.rename(filename, os.path.join(upload_dir, prop_filename))
+        shutil.copyfile(filename, os.path.join(upload_dir, prop_filename))
         # Remove the temp directory
         shutil.rmtree(temp_dir)
         # Use current time in UTC as the object's timestamp

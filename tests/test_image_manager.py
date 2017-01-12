@@ -9,7 +9,7 @@ from pymongo import MongoClient
 sys.path.insert(0, os.path.abspath('..'))
 
 import scoserv.db.attribute as attributes
-import scoserv.db.images as images
+import scoserv.db.image as images
 
 IMAGES_DIR = '/tmp/sco/images'
 DATA_DIR = './data/images'
@@ -117,10 +117,10 @@ class TestImageManagerMethods(unittest.TestCase):
             attributes.Attribute('stimulus_edge_value', 0.8),
             attributes.Attribute('stimulus_aperture_edge_value', 0.75)
         ]
-        self.mngr_groups.update_object_attributes(img_group.identifier, attrs)
+        self.mngr_groups.update_object_options(img_group.identifier, attrs)
         # Ensure that exception is raised if unknown attribute name is given
         with self.assertRaises(ValueError):
-            self.mngr_groups.update_object_attributes(
+            self.mngr_groups.update_object_options(
                 img_group.identifier,
                 [
                     attributes.Attribute('not_a_defined_attribute', 0.8),
@@ -130,7 +130,7 @@ class TestImageManagerMethods(unittest.TestCase):
         # Ensure that exception is raised if duplicate attribute names are in
         # update list
         with self.assertRaises(ValueError):
-            self.mngr_groups.update_object_attributes(
+            self.mngr_groups.update_object_options(
                 img_group.identifier,
                 [
                     attributes.Attribute('stimulus_edge_value', 0.8),
@@ -139,7 +139,7 @@ class TestImageManagerMethods(unittest.TestCase):
             )
         # Ensure that exception is raised if invlid value type is given
         with self.assertRaises(ValueError):
-            self.mngr_groups.update_object_attributes(
+            self.mngr_groups.update_object_options(
                 img_group.identifier,
                 [
                     attributes.Attribute('stimulus_edge_value', 0.8),

@@ -5,6 +5,7 @@ functional data files on local disk.
 
 import datetime
 import os
+import shutil
 import uuid
 
 import datastore
@@ -30,9 +31,8 @@ class FunctionalDataHandle(datastore.DataObjectHandle):
         (Absolute) Path to directory conatining functional data archive file
     """
     def __init__(self, identifier, properties, directory, timestamp=None, is_active=True):
-        """Initialize the subject handle. The directory references a directory
-        on the local disk that contains the anatomy data files necessary as
-        input when running a model locally.
+        """Initialize the object handle. The directory references a directory
+        on the local disk that contains the functional data archive file.
 
         Parameters
         ----------
@@ -60,6 +60,17 @@ class FunctionalDataHandle(datastore.DataObjectHandle):
     def is_functional_data(self):
         """Override the is_functional_data property of the base class."""
         return True
+
+    @property
+    def data_file(self):
+        """Original uploaded data file the subject was created from.
+
+        Returns
+        -------
+        File-type object
+            Reference to file on local disk
+        """
+        return os.path.join(self.directory, self.properties[datastore.PROPERTY_FILENAME])
 
 
 # ------------------------------------------------------------------------------
@@ -107,7 +118,7 @@ class DefaultFunctionalDataManager(datastore.DefaultObjectStore):
     def create_object(self, filename):
         """Create a functional data object for the given file. Currently, no
         tests are performed that the file contains valid data. Expects the file
-        to be a valid tar archive. The file will be moved into the data
+        to be a valid tar archive. The file will be copied into the data
         object's folder on the local disk.
 
         Parameters
@@ -130,7 +141,7 @@ class DefaultFunctionalDataManager(datastore.DefaultObjectStore):
         elif prop_name.endswith('.tar.gz') or prop_name.endswith('.tgz'):
             prop_mime =  'application/gzip'
         else:
-            raise ValueError('Unsupported file type: ' + prop_name)
+            raise ValueError('unsupported file type: ' + prop_name)
         # Create a new object identifier.
         identifier = str(uuid.uuid4())
         # The object directory is given by the object identifier.
@@ -145,7 +156,7 @@ class DefaultFunctionalDataManager(datastore.DefaultObjectStore):
             datastore.PROPERTY_MIMETYPE : prop_mime
         }
         # Move original file to object directory
-        os.rename(filename, os.path.join(object_dir, prop_name))
+        shutil.copyfile(filename, os.path.join(object_dir, prop_name))
         # Create object handle and store it in database before returning it
         obj = FunctionalDataHandle(
             identifier,

@@ -205,11 +205,11 @@ class ModelRunHandle(datastore.ObjectHandle):
 
     The status of the model run is maintained as a separate object. A run that
     has completed successfully will have a prediction result associated
-    with its state. In case of failure, there will be an a list of error
+    with its state. In case of failure, there will be a list of error
     messages associated with its state.
 
-    The state information is replicated into properties to allow object listing
-    filters based on a model run's state.
+    The state information is replicated into the properties list to allow
+    object listing filters based on run state.
 
     Attributes
     ----------
@@ -229,9 +229,7 @@ class ModelRunHandle(datastore.ObjectHandle):
         arguments,
         timestamp=None,
         is_active=True):
-        """Initialize the subject handle. The directory references a directory
-        on the local disk that contains the anatomy data files necessary as
-        input when running a model locally.
+        """Initialize the subject handle.
 
         Parameters
         ----------

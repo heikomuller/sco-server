@@ -18,7 +18,7 @@ class TestPredictionManagerMethods(unittest.TestCase):
         """Connect to MongoDB and clear an existing modelruns collection.
         Create the model run manager"""
         db = MongoClient().scotest
-        db.modelruns.drop()
+        db.predictions.drop()
         self.mngr = predictions.DefaultModelRunManager(db.modelruns)
 
     def test_experiment_create(self):

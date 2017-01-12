@@ -3,24 +3,6 @@
 import os
 
 
-def create_dir(directory):
-    """Create given directory, if doesn't exist.
-
-    Parameters
-    ----------
-    directory : string
-        Directory path (can be relative or absolute)
-
-    Returns
-    -------
-    string
-        Absolute directory path
-    """
-    if not os.access(directory, os.F_OK):
-        os.makedirs(directory)
-    return os.path.abspath(directory)
-
-
 def from_list(elements, label_key='key', label_value='value'):
     """Convert a list of key-value pairs into a dictionary. The value that is
     associated with the key of each key-value pair will be the dictionary key.
@@ -43,26 +25,6 @@ def from_list(elements, label_key='key', label_value='value'):
     for kvp in elements:
         dictionary[kvp[label_key]] = kvp[label_value]
     return dictionary
-
-
-def get_filename_suffix(filename, suffixes):
-    """Ensure that the given file has a suffix that is in the given set of
-    allowed suffixes. Returns the matched suffix or None.
-
-    Parameters
-    ----------
-    filename : string
-        Name of file
-    suffixes : Iterable(string)
-
-    Returns
-    -------
-    string
-        Matched suffix from list of suffixes or None.
-    """
-    for s in suffixes:
-        if filename.endswith(s):
-            return s
 
 
 def to_list(dictionary, label_key='key', label_value='value'):

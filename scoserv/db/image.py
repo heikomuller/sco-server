@@ -71,13 +71,16 @@ class ImageHandle(datastore.DataObjectHandle):
             directory,
             is_active=is_active
         )
-        # Set path to image file on local disk
-        self.image_file = os.path.join(self.directory, self.properties[datastore.PROPERTY_FILENAME])
 
     @property
     def is_image(self):
         """Override the is_image property of the base class."""
         return True
+
+    @property
+    def image_file(self):
+        """Reference to image data file on disk."""
+        return os.path.join(self.directory, self.properties[datastore.PROPERTY_FILENAME])
 
 
 class ImageGroupHandle(datastore.DataObjectHandle):
@@ -132,6 +135,11 @@ class ImageGroupHandle(datastore.DataObjectHandle):
     def is_image_group(self):
         """Override the is_image_group property of the base class."""
         return True
+
+    @property
+    def data_file(self):
+        """Reference to image group archive data file on disk."""
+        return os.path.join(self.directory, self.properties[datastore.PROPERTY_FILENAME])
 
 
 class GroupImage(object):
@@ -206,7 +214,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
 
     def create_object(self, filename):
         """Create an image object on local disk from the given file. The file
-        be moved to the local directory of the created image object.
+        be copied to the local directory of the created image object.
 
         Parameters
         ----------
@@ -245,7 +253,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
             datastore.PROPERTY_MIMETYPE : prop_mime
         }
         # Move original file to object directory
-        os.rename(filename, os.path.join(image_dir, prop_name))
+        shutil.copyfile(filename, os.path.join(image_dir, prop_name))
         # Create object handle and store it in database before returning it
         obj = ImageHandle(identifier, properties, image_dir)
         self.insert_object(obj)
@@ -354,7 +362,8 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
     def create_object(self, name, images, filename, options=None):
         """Create an image group object with the given list of images. The
         file name specifies the location on local disk where the tar-file
-        containing the image group files is located.
+        containing the image group files is located. The file will be copied
+        to the image groups data directory.
 
         Parameters
         ----------
@@ -390,7 +399,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         if not os.access(directory, os.F_OK):
             os.makedirs(directory)
         # Move original file to object directory
-        os.rename(filename, os.path.join(directory, prop_filename))
+        shutil.copyfile(filename, os.path.join(directory, prop_filename))
         # If no options are given then the initial set of options is given by
         # those options in the attribute definition list for which default values
         # are defined.
@@ -497,7 +506,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         json_obj['options'] = attribute.attributes_to_json(img_coll.options)
         return json_obj
 
-    def update_object_attributes(self, identifier, attributes):
+    def update_object_options(self, identifier, options):
         """Update set of typed attributes (options) that are associated with
         a given image group. Raises a ValueError if any of the given
         attributes violates the attribute definitions associated with image
@@ -507,14 +516,23 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         ----------
         identifier : string
             Unique object identifier
-        attributes : List(attribute.Attribute)
+        options : List(attribute.Attribute)
             List of attribute instances
+
+        Returns
+        -------
+        ImageGroupHandle
+            Handle for updated image group or None if identifier is unknown.
         """
-        # Retrieve object from database and replace existing options
+        # Retrieve object from database to ensure that it exists
         img_group = self.get_object(identifier)
-        img_group.options = attribute.get_and_validate_attributes(attributes, self.options_def)
-        # Replace existing object in database
+        if img_group is None:
+            return None
+        # Replace existing object in database with object having given options
+        img_group.options = attribute.get_and_validate_attributes(options, self.options_def)
         self.replace_object(img_group)
+        # Return image group handle
+        return img_group
 
     @staticmethod
     def validate_group(images):

@@ -3,7 +3,7 @@ swagger: "2.0"
 info:
   version: 0.0.1
   title: Data Server - Web API
-  description: API to access and manipulate resources managed by the Standard Cortical Observer Web Service
+  description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store
   license:
     name: GNU GPLv3
     url: https://www.gnu.org/licenses/gpl-3.0.en.html
@@ -144,14 +144,66 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment
+    /experiments/{experimentId}/properties:
+        post:
+            summary: Update experiment property
+            description: Insert, delete, or update property of experiment object
+            operationId: upsertExperimentProperty
+            tags:
+                - experiment
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertProperty"
+            responses:
+                200:
+                    description: Property updated
+                201:
+                    description: New property added
+                204:
+                    description: Property deleted
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
+                404:
+                    description: Unknown experiment object
     /experiments/{experimentId}/fmri:
+        get:
+            summary: Get fMRI data
+            description: Get functional MRI data object associated with with given experiment
+            operationId: getExperimentFMRI
+            tags:
+                - experiment
+                - functional data
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Functional MRI data object
+                    schema:
+                        $ref: "#/definitions/DBObjectHandle"
+                404:
+                    description: Unknown functional MRI data object
         post:
             summary: Upload fMRI data
             description: Upload associated functional MRI data for experiment object
             operationId: uploadFMRI
             tags:
-                - functional data
                 - experiment
+                - functional data
             parameters:
                 - name: experimentId
                   in: path
@@ -176,11 +228,10 @@ paths:
                     description: Invalid file or request
                 404:
                     description: Unknown experiment object
-    /experiments/{experimentId}/fmri/{fmriId}:
-        get:
-            summary: Get functional MRI data
-            description: Get functional MRI data object with given identifier
-            operationId: getFMRI
+        delete:
+            summary: Delete fMRI data
+            description: Delete fMRI data associated with given experiment
+            operationId: deleteExperimentFMRI
             tags:
                 - experiment
                 - functional data
@@ -190,25 +241,41 @@ paths:
                   required: true
                   description: Unique identifier of experiment object
                   type: string
-                - name: fmriId
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown experiment or fMRI object
+    /experiments/{experimentId}/fmr/data:
+        get:
+            summary: Download fMRI data file
+            description: Download original functional MRI data file for object associated with given experiment
+            operationId: downloadExperimentFMRI
+            tags:
+                - experiment
+                - functional data
+                - download
+            parameters:
+                - name: experimentId
                   in: path
                   required: true
-                  description: Unique (relative) identifier of functional MRI data object
+                  description: Unique identifier of experiment object
                   type: string
             produces:
-                - application/json
+                - application/gzip
+                - application/x-tar
             responses:
                 200:
-                    description: Functional MRI data object
+                    description: File object
                     schema:
-                        $ref: "#/definitions/DBObjectHandle"
+                        type: file
                 404:
-                    description: Unknown functional MRI data object
-    /experiments/{experimentId}/fmri/{fmriId}/properties:
+                    description: File not found
+    /experiments/{experimentId}/fmri/properties:
         post:
-            summary: Update functional MRI data property
-            description: Insert, delete, or update property of functional MRI data object
-            operationId: upsertFMRIProperty
+            summary: Update fMRI data property
+            description: Insert, delete, or update property of functional MRI data object associated with given experiment
+            operationId: upsertExperimentFMRIProperty
             tags:
                 - experiment
                 - functional data
@@ -217,11 +284,6 @@ paths:
                   in: path
                   required: true
                   description: Unique identifier of experiment object
-                  type: string
-                - name: fmriId
-                  in: path
-                  required: true
-                  description: Unique (relative) identifier of functional MRI data object
                   type: string
                 - name: property
                   in: body
@@ -240,41 +302,11 @@ paths:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown functional MRI data object
-    /experiments/{experimentId}/fmri/{fmriId}/data:
-        get:
-            summary: Download functional MRI data file
-            description: Download original functional MRI data file for object with given identifier
-            operationId: downloadFMRI
-            tags:
-                - experiment
-                - functional data
-                - download
-            parameters:
-                - name: experimentId
-                  in: path
-                  required: true
-                  description: Unique identifier of experiment object
-                  type: string
-                - name: fmriId
-                  in: path
-                  required: true
-                  description: Unique (relative) identifier of functional MRI data object
-                  type: string
-            produces:
-                - application/gzip
-                - application/x-tar
-            responses:
-                200:
-                    description: File object
-                    schema:
-                        type: file
-                404:
-                    description: File not found
     /experiments/{experimentId}/predictions:
         get:
             summary: List predictions
             description: List all predictions that are part of a particular experiment
-            operationId: listPredictions
+            operationId: listExperimentPredictions
             tags:
                 - experiment
                 - prediction
@@ -313,7 +345,7 @@ paths:
         post:
             summary: Run Experiment
             description: Start a model run for a given experiment
-            operationId: runExperiment
+            operationId: createExperimentPrediction
             tags:
                 - experiment
                 - prediction
@@ -352,7 +384,7 @@ paths:
         get:
             summary: Get prediction
             description: Get prediction for experiment with given identifiers
-            operationId: getPrediction
+            operationId: getExperimentPrediction
             tags:
                 - experiment
                 - prediction
@@ -379,7 +411,7 @@ paths:
         delete:
             summary: Delete prediction
             description: Delete prediction model run from experiment object
-            operationId: deletePrediction
+            operationId: deleteExperimentPrediction
             tags:
                 - experiment
                 - prediction
@@ -401,9 +433,9 @@ paths:
                     description: Unknown experiment or prediction object
     /experiments/{experimentId}/predictions/{predictionId}/data:
         get:
-            summary: Get prediction result
+            summary: Download prediction result
             description: Download results produced by the predictive model
-            operationId: downloadPrediction
+            operationId: downloadExperimentPrediction
             tags:
                 - experiment
                 - prediction
@@ -433,7 +465,7 @@ paths:
         post:
             summary: Upsert prediction property
             description: Insert, delete, or update property of prediction object
-            operationId: upsertPredictionProperty
+            operationId: upsertExperimentPredictionProperty
             tags:
                 - experiment
                 - prediction
@@ -465,36 +497,6 @@ paths:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown experiment or prediction object
-    /experiments/{experimentId}/properties:
-        post:
-            summary: Update experiment property
-            description: Insert, delete, or update property of experiment object
-            operationId: upsertExperimentProperty
-            tags:
-                - experiment
-            parameters:
-                - name: experimentId
-                  in: path
-                  required: true
-                  description: Unique identifier of experiment object
-                  type: string
-                - name: property
-                  in: body
-                  required: true
-                  description: Key-value pair defining property and new value
-                  schema:
-                      $ref: "#/definitions/UpsertProperty"
-            responses:
-                200:
-                    description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
-                400:
-                    description: Attempt to update read-only property or delete mandatory property
-                404:
-                    description: Unknown experiment object
     /images/files:
         get:
             summary: List images

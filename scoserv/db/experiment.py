@@ -29,9 +29,7 @@ class ExperimentHandle(datastore.ObjectHandle):
         Unique identifier of functional MRI data for experiment subject
     """
     def __init__(self, identifier, properties, subject, images, fmri_data=None, timestamp=None, is_active=True):
-        """Initialize the subject handle. The directory references a directory
-        on the local disk that contains the anatomy data files necessary as
-        input when running a model locally.
+        """Initialize the subject handle.
 
         Parameters
         ----------

@@ -34,6 +34,8 @@ PROPERTY_STATE = 'state'
 
 """Return codes for operations that manipulate a set of properties."""
 
+# Requested operation could not be performed because object dows not exist
+OP_NOT_EXISTS = -1
 # Requested operation illegal due to constraints on the property set
 OP_ILLEGAL = 0
 # Operation deleted a property from the property set
@@ -99,7 +101,7 @@ class ObjectHandle(object):
 
         Parameters
         ----------
-        identifier : ObjectId
+        identifier : string
             Unique object identifier
         timestamp : datetime
             Time stamp of object creation (UTC time). If None, the current
@@ -304,14 +306,17 @@ class ObjectStore(object):
             self.mandatory_properties.add(prop)
 
     @abstractmethod
-    def delete_object(self, identifier):
+    def delete_object(self, identifier, erase=False):
         """Delete object with given identifier. Returns the handle for the
         deleted object or None if object identifier is unknown.
 
         Parameters
         ----------
-        identifier : ObjectId
+        identifier : string
             Unique object identifier
+        erase : Boolean, optinal
+            If true, the record will be deleted from the database. Otherwise,
+            the active flag will be set to False to support provenance tracking.
 
         Returns
         -------
@@ -326,7 +331,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : ObjectId
+        identifier : string
             Unique object identifier
 
         Returns
@@ -337,29 +342,12 @@ class ObjectStore(object):
         pass
 
     @abstractmethod
-    def get_download(self, identifier):
-        """Get download information for object with given identifier.
-
-        Parameters
-        ----------
-        identifier : ObjectId
-            Unique object identifier
-
-        Returns
-        -------
-        Tuple (string, string, string)
-            Returns directory, file name, and mime type of downloadable file.
-            Result contains all None if object does not exist.
-        """
-        pass
-
-    @abstractmethod
     def get_object(self, identifier, include_inactive=False):
         """Retrieve object with given identifier from data store.
 
         Parameters
         ----------
-        identifier : ObjectId
+        identifier : string
             Unique object identifier
         include_inactive : Boolean
             Flag indicating whether inactive (i.e., deleted) object should be
@@ -373,7 +361,7 @@ class ObjectStore(object):
         pass
 
     @abstractmethod
-    def list_objects(self, limit=-1, offset=-1, parent_id=None):
+    def list_objects(self, limit=-1, offset=-1):
         """Retrieve list of all objects from data store.
 
         Parameters
@@ -382,8 +370,6 @@ class ObjectStore(object):
             Limit number of results in returned object listing
         offset : int
             Set offset in list (order as defined by object store)
-        parent_id : datastore.ObjectId, optional
-            Parent object identifier for weak entities.
 
         Returns
         -------
@@ -412,7 +398,7 @@ class ObjectStore(object):
         parameter.
 
         The following return values are possible:
-        -1: Object does not exists
+        OP_NOT_EXISTS: Object does not exist
         OP_ILLEGAL: Operation violates a constraint
         OP_DELETED: Deleted
         OP_CREATED: Created
@@ -420,7 +406,7 @@ class ObjectStore(object):
 
         Parameters
         ----------
-        identifier : ObjectId
+        identifier : string
             Unique object identifier
         key : string
             Property name
@@ -461,7 +447,7 @@ class ObjectStore(object):
             return op
         else:
             # No object with given identifier exists
-            return -1
+            return OP_NOT_EXISTS
 
 
 class MongoDBStore(ObjectStore):
@@ -489,7 +475,7 @@ class MongoDBStore(ObjectStore):
         super(MongoDBStore, self).__init__(properties)
         self.collection = mongo_collection
 
-    def delete_object(self, identifier):
+    def delete_object(self, identifier, erase=False):
         """Delete the entry with given identifier in the database. Returns the
         handle for the deleted object or None if object identifier is unknown.
 
@@ -497,6 +483,9 @@ class MongoDBStore(ObjectStore):
         ----------
         identifier : string
             Unique object identifier
+        erase : Boolean, optinal
+            If true, the record will be deleted from the database. Otherwise,
+            the active flag will be set to False to support provenance tracking.
 
         Returns
         -------
@@ -506,9 +495,13 @@ class MongoDBStore(ObjectStore):
         db_object = self.get_object(identifier)
         # Set active flag to False if object exists.
         if not db_object is None:
-            # Delete object with given identifier. Result contains object count
-            # to determine if the object existed or not
-            self.collection.update_one({"_id": identifier}, {'$set' : {'active' : False}})
+            if erase:
+                # Erase object from database
+                self.collection.delete_many({"_id": identifier})
+            else:
+                # Delete object with given identifier by setting active flag
+                # to False
+                self.collection.update_one({"_id": identifier}, {'$set' : {'active' : False}})
         # Return retrieved object or None if it didn't exist.
         return db_object
 
@@ -580,8 +573,7 @@ class MongoDBStore(ObjectStore):
         ----------
         db_object : (Sub-class of)ObjectHandle
         """
-        # Create object using the  to_json() method. Use the object
-        # identifier as ObjectId.
+        # Create object using the  to_json() method.
         obj = self.to_json(db_object)
         obj['active'] = True
         self.collection.insert_one(obj)
@@ -589,7 +581,7 @@ class MongoDBStore(ObjectStore):
     def list_objects(self, query=None, limit=-1, offset=-1):
         """List of all objects in the database. Optinal parameter limit and
         offset for pagination. A dictionary of key,value-pairs can be given as
-        query for object properties.
+        addictional query condition for document properties.
 
         Parameters
         ----------
@@ -609,7 +601,7 @@ class MongoDBStore(ObjectStore):
         doc = {'active' : True}
         if not query is None:
             for key in query:
-                doc['properties.' + key] = query[key]
+                doc[key] = query[key]
         # Iterate over all objects in the MongoDB collection and add them to
         # the result
         coll = self.collection.find(doc).sort([('timestamp', pymongo.DESCENDING)])
@@ -689,34 +681,7 @@ class DefaultObjectStore(MongoDBStore):
         # Raise an exception if the base directory does not exist or is not
         # a directory
         if not os.access(base_directory, os.F_OK):
-            raise ValueError('Directory does not exist: ' + base_directory)
+            raise ValueError('directory does not exist: ' + base_directory)
         if not os.path.isdir(base_directory):
-            raise ValueError('Not a directory: ' + base_directory)
+            raise ValueError('not a directory: ' + base_directory)
         self.directory = base_directory
-
-
-    def get_download(self, identifier):
-        """Get download information for object with given identifier. Assumes
-        that the object has an attribute directory as well as file name and mime
-        type properties.
-
-        Parameters
-        ----------
-        identifier : ObjectId
-            Unique object identifier
-
-        Returns
-        -------
-        Tuple (string, string, string)
-            Returns directory, file name, and mime type of downloadable file.
-            Result contains all None if object does not exist.
-        """
-        # Retrieve image from database. Abort if it does not exist.
-        db_obj = self.get_object(identifier)
-        if db_obj is None:
-            return None
-        # Return image's data directory, original file name, and mime type
-        directory = db_obj.directory
-        filename = db_obj.properties[PROPERTY_FILENAME]
-        mime_type = db_obj.properties[PROPERTY_MIMETYPE]
-        return directory, filename, mime_type

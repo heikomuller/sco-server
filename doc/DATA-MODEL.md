@@ -67,3 +67,51 @@ Model runs are associated with a set of arguments. The current list of possible 
 ### SubjectHandle
 
 Handle for subject brain anatomy objects. Subjects are created by upload of data files (currently Freesurfer directories). The subject handle class defines two additional directories on the local disk. One directory contains the originally uploaded tar archive and the other directory the unpacked data files (for faster local access).
+
+
+## API
+
+### experiments
+
+experiments_create(name, subject, images)
+experiments_delete(identifier)
+experiments_upsert_property(identifier, key, value=None)
+experiments_get(identifier)
+experiments_list(limit=-1, offset=-1)
+experiments_fmri_create(identifier, filename)
+experiments_fmri_delete(identifier)
+experiments_fmri_download(identifier)
+experiments_fmri_get(identifier)
+experiments_fmri_upsert_property(self, identifier, key, value=None)
+experiments_predictions_create(experiment, name, arguments=None)
+experiments_predictions_delete(experiment, prediction)
+experiments_predictions_download(experiment, prediction)
+experiments_predictions_get(experiment, prediction)
+experiments_predictions_list(experiment, limit=-1, offset=-1)
+experiments_predictions_update_state(experiment, prediction, state)
+experiments_predictions_upsert_property(experiment, prediction, key, value=None)
+
+### Images
+
+images_create(filename)
+image_files_delete(identifier)
+image_files_download(identifier)
+image_files_get(identifier)
+image_files_list(limit=-1, offset=-1)
+image_files_upsert_property(identifier, key, value=None)
+image_groups_delete(identifier)
+image_groups_download(identifier)
+image_groups_get(identifier)
+image_groups_list(limit=-1, offset=-1)
+image_groups_update_options(identifier, options)
+image_groups_upsert_property(identifier, key, value=None)
+
+
+### Subjects
+
+subjects_create(filename)
+subjects_delete(identifier)
+subjects_download(identifier)
+subjects_get(identifier)
+subjects_list(limit=-1, offset=-1)
+subjects_upsert_property(identifier, key, value=None)
