@@ -12,6 +12,10 @@ The overall architecture and details about the default implementation of the SCO
 
 The data store is implemented as a Python library. The library provides an API to access and manipulate objects in the SCO-DS database and on the file system. The data model of the data store library is shown in Figure 2.  The following is a discussion of the basic objects and API calls in this model.
 
+![alt text](graphics/sco.png "SCO Data Store - Data Model")
+
+Figure 2: Entities in the SCO-DS data model.
+
 
 ### ObjectHandle
 
@@ -71,8 +75,11 @@ Handle for subject brain anatomy objects. Subjects are created by upload of data
 
 ## API
 
-### experiments
+The following lists the signatures of available API methods to access and manipulate objects in the SCO-DS
 
+### Experiments
+
+```
 experiments_create(name, subject, images)
 experiments_delete(identifier)
 experiments_upsert_property(identifier, key, value=None)
@@ -90,9 +97,11 @@ experiments_predictions_get(experiment, prediction)
 experiments_predictions_list(experiment, limit=-1, offset=-1)
 experiments_predictions_update_state(experiment, prediction, state)
 experiments_predictions_upsert_property(experiment, prediction, key, value=None)
+```
 
 ### Images
 
+```
 images_create(filename)
 image_files_delete(identifier)
 image_files_download(identifier)
@@ -105,13 +114,15 @@ image_groups_get(identifier)
 image_groups_list(limit=-1, offset=-1)
 image_groups_update_options(identifier, options)
 image_groups_upsert_property(identifier, key, value=None)
-
+```
 
 ### Subjects
 
+```
 subjects_create(filename)
 subjects_delete(identifier)
 subjects_download(identifier)
 subjects_get(identifier)
 subjects_list(limit=-1, offset=-1)
 subjects_upsert_property(identifier, key, value=None)
+```
