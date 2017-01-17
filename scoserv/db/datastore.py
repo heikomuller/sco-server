@@ -86,7 +86,7 @@ class ObjectHandle(object):
         True, if object is ImageHandle.
     is_image_group : Boolean
         True, if object is ImageGroupHandle.
-    is_prediction : Boolean
+    is_model_run : Boolean
         True, if object is PredictionHandle.
     is_subject : Boolean
         True, if object is SubjectHandle.
@@ -244,14 +244,32 @@ class DataObjectHandle(ObjectHandle):
 class ObjectListing(object):
     """Result of a list_objects operation. Contains two field: The list of
     objects in the result an the total number of objects in the database.
+
+    Attributes
+    ----------
+    items : List(ObjectHandle)
+        List of objects that are subclass of ObjectHandle.
+    limit : int
+        Result has been limited to not include all items (or -1 for all)
+    offset : int
+        Offset in list (order as defined by object store)
+    total_count : int
+        Total number of object's of this type in the database. This number
+        may be different from the size of the items list, which may only
+        contain a subset of items. The total_number of objects is necessary
+        for pagination of object listings in the web interface.
     """
-    def __init__(self, items, total_count):
+    def __init__(self, items, offset, limit, total_count):
         """Initialize the object list and total count.
 
         Parameters
         ----------
         items : List(ObjectHandle)
             List of objects that are subclass of ObjectHandle.
+        limit : int
+            Result has been limited to not include all items (or -1 for all)
+        offset : int
+            Offset in list (order as defined by object store)
         total_count : int
             Total number of object's of this type in the database. This number
             may be different from the size of the items list, which may only
@@ -259,6 +277,8 @@ class ObjectListing(object):
             for pagination of object listings in the web interface.
         """
         self.items = items
+        self.offset = offset
+        self.limit = limit
         self.total_count = total_count
 
 
@@ -614,7 +634,7 @@ class MongoDBStore(ObjectStore):
             if offset < 0 or count >= offset:
                 result.append(self.from_json(document))
             count += 1
-        return ObjectListing(result, coll.count())
+        return ObjectListing(result, offset, limit, coll.count())
 
     def replace_object(self, db_object):
         """Update an existing object (identified by the object identifier) with

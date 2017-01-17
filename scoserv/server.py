@@ -1,10 +1,9 @@
 #!venv/bin/python
 import os
 
-from flask import Flask, jsonify, make_response, request, send_file, send_from_directory
+from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
 
-import reqexcpt as exceptions
 import hateoas
 import db.api
 
@@ -41,7 +40,7 @@ app.config['DEBUG'] = DEBUG
 CORS(app)
 
 # Instantiate the Standard Cortical Observer Data Store.
-db = ad.api.SCODataStore(MONGO_DB, DATA_DIR)
+db = db.api.SCODataStore(MONGO_DB, DATA_DIR)
 # Factory for object references
 refs = hateoas.HATEOASReferenceFactory(BASE_URL)
 
@@ -74,7 +73,7 @@ def experiments_list():
     """
     # Get listing arguments. Method raises exception if argument values are
     # of invalid type
-    offset, limit, prop_set = get_listing_arguments(reques)
+    offset, limit, prop_set = get_listing_arguments(request)
     # Decorate experiment listing and return Json object
     return jsonify(
         refs.decorate_listing(
@@ -88,14 +87,14 @@ def experiments_list():
 def experiments_get(experiment_id):
     """Get experiment (GET) - Retrieve an experiment object from the database.
     """
-    # Return Json serialization of object. The decorate_object method throws
-    # ResourceNotFound excpetion if the given object identifier does not
-    # reference an existing experiment.
-    return jsonify(
-        refs.decorate_object(
-            db.experiments_get(experiment_id)
-        )
-    )
+    # Get experiment object from database.
+    experiment = db.experiments_get(experiment_id)
+    if experiment is None:
+        # Raise exception if experiment does not exist.
+        raise ResourceNotFound(experiment_id)
+    else:
+        # Return Json serialization of object.
+        return jsonify(refs.decorate_object(experiment))
 
 
 @app.route('/experiments', methods=['POST'])
@@ -104,12 +103,12 @@ def experiments_create():
     """
     # Make sure that the post request has a json part
     if not request.json:
-        raise exceptions.InvalidRequest('not a valid Json object in request body')
+        raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     # Make sure that all required keys are present in the given Json object
     for key in ['name', 'subject', 'images']:
         if not key in json_obj:
-            raise exceptions.InvalidRequest('missing element in Json body: ' + key)
+            raise InvalidRequest('missing element in Json body: ' + key)
     # Call API method to create a new experiment object
     experiment = api.experiments_create(
         json_obj['name'],
@@ -133,7 +132,7 @@ def experiments_delete(experiment_id):
     if not db.experiments_delete(experiment_id) is None:
         return '', 204
     else:
-        raise excpt.ResourceNotFound(experiment_id)
+        raise ResourceNotFound(experiment_id)
 
 
 @app.route('/experiments/<string:experiment_id>/properties', methods=['POST'])
@@ -148,7 +147,7 @@ def experiments_upsert_property(experiment_id):
     # or ResourceNotFound exceptions if necessary.
     return '', get_upsert_response(
         db.experiments_upsert_property(experiment_id, key, value=value),
-        object_id,
+        experiment_id,
         key,
         value
     )
@@ -163,33 +162,35 @@ def experiments_fmri_get(experiment_id):
     """Get functional MRI data (GET) - Retrieve a functional MRI data object
     from the database.
     """
-    # Return Json serialization of object. The decorate_object method throws
-    # ResourceNotFound excpetion if the given object identifier does not
-    # reference an existing experiments fMRI data object.
-    return jsonify(
-        refs.decorate_object(
-            db.experiments_fmri_get(experiment_id)
-        )
-    )
+    # Get experiments fMRI object from database.
+    fmri = db.experiments_fmri_get(experiment_id)
+    if fmri is None:
+        # Raise exception if experiments fMRI does not exist.
+        raise ResourceNotFound(experiment_id + ':fmri')
+    else:
+        # Return Json serialization of object.
+        return jsonify(refs.decorate_object(fmri))
 
 
 @app.route('/experiments/<string:experiment_id>/fmri', methods=['POST'])
-def upload_experiment_fmri(experiment_id):
+def experiments_fmri_create(experiment_id):
     """Upload functional MRI data (POST) - Upload a functional MRI data archive
     file that is associated with a experiment.
     """
     # Get the uploaded file. Method raises InvalidRequest if no file was given
     upload_file = get_upload_file(request)
-    # Upload the fMRI data and associate it with the experiment. Method will
-    # raise InvalidRequest or ResourceNotFound exceptions.
-    experiment = sco.upload_experiment_fmri(
-        datastore.ObjectId(experiment_id),
+    # Upload the fMRI data and associate it with the experiment.
+    fmri = db.experiments_fmri_create(
+        experiment_id,
         upload_file
     )
+    # If fMRI is None the given experiment does not exist
+    if fmri is None:
+        raise ResourceNotFound(experiment_id + ':fmri')
     # Return result including a list of references to updated experiment
     return jsonify({
         'result' : 'SUCCESS',
-        'links': sco.refs.object_references(experiment)
+        'links': refs.object_references(fmri)
     })
 
 
@@ -204,28 +205,25 @@ def experiments_fmri_delete(experiment_id):
     if not db.experiments_fmri_delete(experiment_id) is None:
         return '', 204
     else:
-        raise excpt.ResourceNotFound(experiment_id + ':fmri')
+        raise ResourceNotFound(experiment_id + ':fmri')
 
 
 @app.route('/experiments/<string:experiment_id>/fmri/data')
-def download_fmri(experiment_id):
+def experiments_fmri_download(experiment_id):
     """Download functional MRI data (GET) - Download data of previously uploaded
     functional MRI data.
     """
-    # Get download information for given object. Method raises ResourceNotFound
-    # exception if object does not exists or does not have any downloadable
-    # representation.
-    directory, filename, mime_type = sco.get_download(
-        datastore.ObjectId([experiment_id, fmri_id]),
-        datastore.OBJ_FMRI_DATA
-    )
+    # Get download information for experiments fMRI data object. The result is
+    # None if experiment of fMRI obejct does not exist.
+    file_info = db.experiments_fmri_download(experiment_id)
+    if file_info is None:
+        raise ResourceNotFound(experiment_id + ':fmri')
     # Send file in the object's upload folder
-    return send_from_directory(
-        directory,
-        filename,
-        mimetype=mime_type,
+    return send_file(
+        file_info.file,
+        mimetype=file_info.mime_type,
         as_attachment=True,
-        attachment_filename=filename
+        attachment_filename=file_info.name
     )
 
 
@@ -241,7 +239,7 @@ def experiments_fmri_upsert_property(experiment_id):
     # or ResourceNotFound exceptions if necessary.
     return '', get_upsert_response(
         db.experiments_fmri_upsert_property(experiment_id, key, value=value),
-        object_id,
+        experiment_id + ':fmri',
         key,
         value
     )
@@ -258,7 +256,7 @@ def experiments_predictions_list(experiment_id):
     """
     # Get listing arguments. Method raises exception if argument values are
     # of invalid type
-    offset, limit, prop_set = get_listing_arguments(reques)
+    offset, limit, prop_set = get_listing_arguments(request)
     # Decorate prediction listing and return Json object
     return jsonify(
         refs.decorate_listing(
@@ -276,39 +274,42 @@ def experiments_predictions_get(experiment_id, prediction_id):
     """Get prediction (GET) - Retrieve a model run and its prediction result
     for a given experiment.
     """
-    # Return Json serialization of object. The decorate_object method throws
-    # ResourceNotFound excpetion if the given object identifier does not
-    # reference an existing prediction.
-    return jsonify(
-        refs.decorate_object(
-            db.experiments_predictions_get(experiment_id, prediction_id)
-        )
-    )
+    # Get prediction object from database.
+    prediction = db.experiments_predictions_get(experiment_id, prediction_id)
+    if prediction is None:
+        # Raise exception if prediction does not exist.
+        raise ResourceNotFound(experiment_id + ':' + prediction_id)
+    else:
+        # Return Json serialization of object.
+        return jsonify(refs.decorate_object(prediction))
 
 
 @app.route('/experiments/<string:experiment_id>/predictions', methods=['POST'])
-def create_experiment_prediction(experiment_id):
+def experiments_predictions_create(experiment_id):
     """Create model run (POST) - Start a new model run for an experiment using a
     user provided set of arguments.
     """
     # Make sure that the post request has a json part
     if not request.json:
-        raise exceptions.InvalidRequest('not a valid Json object in request body')
+        raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     # Make sure that all required keys are present in the given Json object
     for key in ['name', 'arguments']:
         if not key in json_obj:
-            raise exceptions.InvalidRequest('missing element in Json body: ' + key)
+            raise InvalidRequest('missing element in Json body: ' + key)
     # Call create method of API to get a new model run object handle.
-    prediction = sco.create_prediction(
-        datastore.ObjectId(experiment_id),
+    prediction = db.experiments_predictions_create(
+        experiment_id,
         json_obj['name'],
         get_attributes(json_obj['arguments'])
     )
+    # The result is None if experiment does not exists
+    if prediction is None:
+        raise ResourceNotFound(experiment_id)
     # Return result including list of references for new model run.
     return jsonify({
         'result' : 'SUCCESS',
-        'links': sco.refs.object_references(prediction)
+        'links': refs.object_references(prediction)
     }), 201
 
 
@@ -322,28 +323,25 @@ def experiments_predictions_delete(experiment_id, prediction_id):
     if not db.experiments_predictions_delete(experiment_id, prediction_id) is None:
         return '', 204
     else:
-        raise excpt.ResourceNotFound(experiment_id + ':' + prediction_id)
+        raise ResourceNotFound(experiment_id + ':' + prediction_id)
 
 
 @app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/data')
-def download_experiment_prediction(experiment_id, prediction_id):
+def experiments_predictions_download(experiment_id, prediction_id):
     """Download prediction (GET) - Download prediction result generated by a
     successfully finished model run that is associated with a given experiment.
     """
-    # Get download information for given object. Method raises ResourceNotFound
-    # exception if object does not exists or does not have any downloadable
-    # representation.
-    directory, filename, mime_type = sco.get_download(
-        datastore.ObjectId([experiment_id, prediction_id]),
-        datastore.OBJ_PREDICTION
-    )
+    # Get download information for given object.
+    file_info = db.experiments_predictions_download(experiment_id, prediction_id)
+    # The result is None if object does not exist
+    if file_info is None:
+        raise ResourceNotFound(experiment_id + ':' + prediction_id)
     # Send file in the object's upload folder
-    return send_from_directory(
-        directory,
-        filename,
-        mimetype=mime_type,
+    return send_file(
+        file_info.file,
+        mimetype=file_info.mime_type,
         as_attachment=False,
-        attachment_filename=filename
+        attachment_filename=file_info.name
     )
 
 
@@ -363,7 +361,7 @@ def experiments_predictions_upsert_property(experiment_id, prediction_id):
             prediction_id,
             key,
             value=value),
-        object_id,
+        prediction_id,
         key,
         value
     )
@@ -378,7 +376,7 @@ def image_files_list():
     """List images (GET) - List of all image objects in the database."""
     # Get listing arguments. Method raises exception if argument values are
     # of invalid type
-    offset, limit, prop_set = get_listing_arguments(reques)
+    offset, limit, prop_set = get_listing_arguments(request)
     # Decorate image file listing and return Json object
     return jsonify(
         refs.decorate_listing(
@@ -391,14 +389,14 @@ def image_files_list():
 @app.route('/images/files/<string:image_id>', methods=['GET'])
 def image_files_get(image_id):
     """Get image (GET) - Retrieve an image object from the database."""
-    # Return Json serialization of object. The decorate_object method throws
-    # ResourceNotFound excpetion if the given object identifier does not
-    # reference an existing image file object.
-    return jsonify(
-        refs.decorate_object(
-            db.image_files_get(image_id)
-        )
-    )
+    # Get image file object from database.
+    img = db.image_files_get(image_id)
+    if img is None:
+        # Raise exception if image does not exist.
+        raise ResourceNotFound(image_id)
+    else:
+        # Return Json serialization of object.
+        return jsonify(refs.decorate_object(img))
 
 
 @app.route('/images/files/<string:image_id>', methods=['DELETE'])
@@ -411,26 +409,23 @@ def image_files_delete(image_id):
     if not db.image_files_delete(image_id) is None:
         return '', 204
     else:
-        raise excpt.ResourceNotFound(image_id)
+        raise ResourceNotFound(image_id)
 
 
 @app.route('/images/files/<string:image_id>/data')
-def download_image(image_id):
+def image_files_download(image_id):
     """Download image file (GET)"""
-    # Get download information for given object. Method raises ResourceNotFound
-    # exception if object does not exists or does not have any downloadable
-    # representation.
-    directory, filename, mime_type = sco.get_download(
-        datastore.ObjectId(image_id),
-        datastore.OBJ_IMAGE
-    )
+    # Get download information for given object.
+    file_info = db.image_files_download(image_id)
+    # The result is None if object does not exist
+    if file_info is None:
+        raise ResourceNotFound(image_id)
     # Send file in the object's upload folder
-    return send_from_directory(
-        directory,
-        filename,
-        mimetype=mime_type,
+    return send_file(
+        file_info.file,
+        mimetype=file_info.mime_type,
         as_attachment=False,
-        attachment_filename=filename
+        attachment_filename=file_info.name
     )
 
 
@@ -446,7 +441,7 @@ def image_files_upsert_property(image_id):
     # or ResourceNotFound exceptions if necessary.
     return '', get_upsert_response(
         db.image_files_upsert_property(image_id, key, value=value),
-        object_id,
+        image_id,
         key,
         value
     )
@@ -461,7 +456,7 @@ def image_groups_list():
     """List image groups (GET) - List of all image group objects in the database."""
     # Get listing arguments. Method raises exception if argument values are
     # of invalid type
-    offset, limit, prop_set = get_listing_arguments(reques)
+    offset, limit, prop_set = get_listing_arguments(request)
     # Decorate image group listing and return Json object
     return jsonify(
         refs.decorate_listing(
@@ -474,14 +469,14 @@ def image_groups_list():
 @app.route('/images/groups/<string:image_group_id>', methods=['GET'])
 def image_groups_get(image_group_id):
     """Get image group (GET) - Retrieve an image group from the database."""
-    # Return Json serialization of object. The decorate_object method throws
-    # ResourceNotFound excpetion if the given object identifier does not
-    # reference an existing image group.
-    return jsonify(
-        refs.decorate_object(
-            db.image_groups_get(image_group_id)
-        )
-    )
+    # Get image group object from database.
+    img_grp = db.image_groups_get(image_group_id)
+    if img_grp is None:
+        # Raise exception if image group does not exist.
+        raise ResourceNotFound(image_group_id)
+    else:
+        # Return Json serialization of object.
+        return jsonify(refs.decorate_object(img_grp))
 
 
 @app.route('/images/groups/<string:image_group_id>', methods=['DELETE'])
@@ -495,52 +490,47 @@ def image_groups_delete(image_group_id):
     if not db.image_groups_delete(image_group_id) is None:
         return '', 204
     else:
-        raise excpt.ResourceNotFound(image_group_id)
+        raise ResourceNotFound(image_group_id)
 
 
 @app.route('/images/groups/<string:image_group_id>/data')
-def download_image_group(image_group_id):
+def image_groups_download(image_group_id):
     """Download image group file (GET)"""
-    # Get download information for given object. Method raises ResourceNotFound
-    # exception if object does not exists or does not have any downloadable
-    # representation.
-    directory, filename, mime_type = sco.get_download(
-        datastore.ObjectId(image_group_id),
-        datastore.OBJ_IMAGEGROUP
-    )
+    # Get download information for given object.
+    file_info = db.image_groups_download(image_group_id)
+    # The result is None if object does not exist
+    if file_info is None:
+        raise ResourceNotFound(image_group_id)
     # Send file in the object's upload folder
-    return send_from_directory(
-        directory,
-        filename,
-        mimetype=mime_type,
-        as_attachment=True,
-        attachment_filename=filename
+    return send_file(
+        file_info.file,
+        mimetype=file_info.mime_type,
+        as_attachment=False,
+        attachment_filename=file_info.name
     )
 
 
 @app.route('/images/groups/<string:image_group_id>/options', methods=['POST'])
-def update_image_group_options(image_group_id):
+def image_groups_update_options(image_group_id):
     """Upsert image group options (POST) - Upsert the options that are
     associated with an image group in the database. Given that these options
     cannot be included in the file upload, there has to be a separate API call.
     """
     # Make sure that the request contains a Json body with an 'options' element
     if not request.json:
-        raise exceptions.InvalidRequest('not a valid Json object in request body')
+        raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     if not 'options' in json_obj:
-        raise exceptions.InvalidRequest('missing element in Json body: options')
+        raise InvalidRequest('missing element in Json body: options')
     # Convert the Json element associated with key 'options' into a list of
     # typed property instance. Throws an InvalidRequest exception if the format
     # of the element value is invalid.
     attributes = get_attributes(json_obj['options'])
-    # Upsert object options. Method will raise InvalidRequest or
-    # ResourceNotFound exceptions if necessary.
-    sco.update_object_attributes(
-        datastore.ObjectId(image_group_id),
-        datastore.OBJ_IMAGEGROUP,
-        attributes
-    )
+    # Upsert object options. The result will be None if image group does not
+    # exist.
+    img_grp = db.image_groups_update_options(image_group_id, attributes)
+    if img_grp is None:
+        raise ResourceNotFound(image_group_id)
     return '', 200
 
 
@@ -556,7 +546,7 @@ def image_groups_upsert_property(image_group_id):
     # or ResourceNotFound exceptions if necessary.
     return '', get_upsert_response(
         db.image_groups_upsert_property(image_group_id, key, value=value),
-        object_id,
+        image_group_id,
         key,
         value
     )
@@ -567,15 +557,18 @@ def image_groups_upsert_property(image_group_id):
 # ------------------------------------------------------------------------------
 
 @app.route('/images/upload', methods=['POST'])
-def upload_images():
+def images_create():
     """Upload Images (POST) - Upload an image file or an archive of images."""
-    # Upload the file and an image file or image group. Method will throw
-    # InvalidRequest exception if necessary.
-    img_handle =  sco.upload_file(datastore.OBJ_IMAGE, get_upload_file(request))
+    # Upload the file to get handle. Type will depend on suffix of uploaded
+    # file. A value error will be raised if file is invalid.
+    try:
+        img_handle =  db.images_create(get_upload_file(request))
+    except ValueError as err:
+        raise InvalidRequest(str(err))
     # Return result including list of references for the new database object.
     return jsonify({
         'result' : 'SUCCESS',
-        'links': sco.refs.object_references(img_handle)
+        'links': refs.object_references(img_handle)
     })
 
 
@@ -590,7 +583,7 @@ def subjects_list():
     """
     # Get listing arguments. Method raises exception if argument values are
     # of invalid type
-    offset, limit, prop_set = get_listing_arguments(reques)
+    offset, limit, prop_set = get_listing_arguments(request)
     # Decorate subject listing and return Json object
     return jsonify(
         refs.decorate_listing(
@@ -605,26 +598,26 @@ def subjects_get(subject_id):
     """Get subject (GET) - Retrieve a brain anatomy MRI object from the
     database.
     """
-    # Return Json serialization of object. The decorate_object method throws
-    # ResourceNotFound excpetion if the given object identifier does not
-    # reference an existing subject.
-    return jsonify(
-        refs.decorate_object(
-            db.subjects_get(subject_id)
-        )
-    )
+    # Get subject from database.
+    subject = db.subjects_get(subject_id)
+    if subject is None:
+        # Raise exception if subject does not exist.
+        raise ResourceNotFound(subject_id)
+    else:
+        # Return Json serialization of object.
+        return jsonify(refs.decorate_object(subject))
 
 
 @app.route('/subjects', methods=['POST'])
-def upload_subject():
+def subjects_create():
     """Upload Subject (POST) - Upload an brain anatomy MRI archive file."""
     # Upload the given file to get an object handle for new subject. Method
     # throws InvalidRequest exception if necessary.
-    subject =  sco.upload_file(datastore.OBJ_SUBJECT, get_upload_file(request))
+    subject =  db.subjects_create(get_upload_file(request))
     # Return result including a list of references to new subject in database.
     return jsonify({
         'result' : 'SUCCESS',
-        'links': sco.refs.object_references(subject)
+        'links': refs.object_references(subject)
     })
 
 
@@ -638,30 +631,27 @@ def subjects_delete(subject_id):
     if not db.subjects_delete(subject_id) is None:
         return '', 204
     else:
-        raise excpt.ResourceNotFound(subject_id)
+        raise ResourceNotFound(subject_id)
 
 
 @app.route('/subjects/<string:subject_id>/data')
-def download_subject(subject_id):
+def subject_download(subject_id):
     """Download subject (GET) - Download data of previously uploaded subject
     anatomy.
     """
     # Get download information for given object. Method raises ResourceNotFound
     # exception if object does not exists or does not have any downloadable
     # representation.
-    directory, filename, mime_type = sco.get_download(
-        datastore.ObjectId(subject_id),
-        datastore.OBJ_SUBJECT
-    )
-    print directory
-    print filename
+    file_info = db.subjects_download(subject_id)
+    # The result is None if subject does not exists
+    if file_info is None:
+        raise ResourceNotFound(subject_id)
     # Send file in the object's upload folder
-    return send_from_directory(
-        directory,
-        filename,
-        mimetype=mime_type,
+    return send_file(
+        file_info.file,
+        mimetype=file_info.mime_type,
         as_attachment=True,
-        attachment_filename=filename
+        attachment_filename=file_info.name
     )
 
 
@@ -677,10 +667,71 @@ def subjects_upsert_property(subject_id):
     # or ResourceNotFound exceptions if necessary.
     return '', get_upsert_response(
         db.subjects_upsert_property(subject_id, key, value=value),
-        object_id,
+        subject_id,
         key,
         value
     )
+
+
+# ------------------------------------------------------------------------------
+#
+# API Request Exceptions
+#
+# ------------------------------------------------------------------------------
+
+class APIRequestException(Exception):
+    """Base class for API exceptions."""
+    def __init__(self, message, status_code):
+        """Initialize error message and status code.
+
+        Parameters
+        ----------
+        message : string
+            Error message.
+        status_code : int
+            Http status code.
+        """
+        Exception.__init__(self)
+        self.message = message
+        self.status_code = status_code
+
+    def to_dict(self):
+        """Dictionary representation of the exception.
+
+        Returns
+        -------
+        Dictionary
+        """
+        return {'message' : self.message}
+
+
+class InvalidRequest(APIRequestException):
+    """Exception for invalid requests that have status code 400."""
+    def __init__(self, message):
+        """Initialize the message and status code (400) of super class.
+
+        Parameters
+        ----------
+        message : string
+            Error message.
+        """
+        super(InvalidRequest, self).__init__(message, 400)
+
+
+class ResourceNotFound(APIRequestException):
+    """Exception for file not found situations that have status code 404."""
+    def __init__(self, object_id):
+        """Initialize the message and status code (404) of super class.
+
+        Parameters
+        ----------
+        object_id : string
+            Identifier of unknown resource
+        """
+        # Build the response message depending on whether object type is given
+        message = 'unknown identifier: ' + object_id
+        # Initialize the super class
+        super(ResourceNotFound, self).__init__(message, 404)
 
 
 # ------------------------------------------------------------------------------
@@ -749,11 +800,37 @@ def get_listing_arguments(request):
         offset = int(request.args[hateoas.QPARA_OFFSET]) if hateoas.QPARA_OFFSET in request.args else 0
         limit = int(request.args[hateoas.QPARA_LIMIT]) if hateoas.QPARA_LIMIT in request.args else -1
     except ValueError as err:
-        raise exceptions.InvalidRequest(str(err))
+        raise InvalidRequest(str(err))
     # Get the set of attributes that are included in the result listing. By
     # default, the object name is always included.
     prop_set = request.args[hateoas.QPARA_PROPERTIES].split(',') if hateoas.QPARA_PROPERTIES in request.args else None
     return offset, limit, prop_set
+
+
+def get_upload_file(request):
+    """Generalized method for file uploads. Ensures that request contains a
+    file and returns the file. Raise InvalidRequest exception if request does
+    not contain an uploded file.
+
+    Parameters
+    ----------
+    request : flask.request
+        Flask request object
+
+    Returns
+    -------
+    File Object
+        File object in upload request.
+    """
+    # Make sure that the post request has the file part
+    if 'file' not in request.files:
+        raise InvalidRequest('no file argument in request')
+    file = request.files['file']
+    # A browser may submit a empty part without filename
+    if file.filename == '':
+        raise InvalidRequest('empty file name')
+    # Call upload method of API
+    return file
 
 
 def get_upsert_property(request):
@@ -773,10 +850,10 @@ def get_upsert_property(request):
     # Abort with 400 if the request is not a Json request or if the Json object
     # in the request does not have field key. Field value is optional.
     if not request.json:
-        raise exceptions.InvalidRequest('not a valid Json object in request body')
+        raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     if not 'key' in json_obj:
-        raise exceptions.InvalidRequest('missing element in Json body: key')
+        raise InvalidRequest('missing element in Json body: key')
     # Get key and new value (if given) of property to update
     key = json_obj['key']
     value = json_obj['value'] if 'value' in json_obj else None
@@ -804,7 +881,7 @@ def get_upsert_response(state, object_id, key, value):
         Http response code
     """
     if state == datastore.OP_ILLEGAL:
-        raise excpt.InvalidRequest(
+        raise InvalidRequest(
             'illegal upsert: ' + object_id + '.' + str(key) + '=' + str(value)
         )
     elif state == datastore.OP_CREATED:
@@ -816,33 +893,7 @@ def get_upsert_response(state, object_id, key, value):
     else: # -1
         # This point should never be reached, unless object has been deleted
         # concurrently.
-        raise excpt.ResourceNotFound(object_id)
-
-
-def get_upload_file(request):
-    """Generalized method for file uploads. Ensures that request contains a
-    file and returns the file. Raise InvalidRequest exception if request does
-    not contain an uploded file.
-
-    Parameters
-    ----------
-    request : flask.request
-        Flask request object
-
-    Returns
-    -------
-    File Object
-        File object in upload request.
-    """
-    # Make sure that the post request has the file part
-    if 'file' not in request.files:
-        raise exceptions.InvalidRequest('no file argument in request')
-    file = request.files['file']
-    # A browser may submit a empty part without filename
-    if file.filename == '':
-        raise exceptions.InvalidRequest('empty file name')
-    # Call upload method of API
-    return file
+        raise ResourceNotFound(object_id)
 
 
 # ------------------------------------------------------------------------------
