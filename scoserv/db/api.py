@@ -251,7 +251,7 @@ class SCODataStore(object):
 
         Returns
         -------
-        FunctionalDataHandle
+        FMRIDataHandle
             Handle for fMRI data object of None if (a) the experiment is unknown
             or (b) has no fMRI data object associated with it.
         """
@@ -262,11 +262,10 @@ class SCODataStore(object):
         # Check if experiment has fMRI data
         if experiment.fmri_data is None:
             return None
-        # Return result of retrieving functional data object associated with
-        # experiment. If the database is inconsistent the object may not exists.
-        # We could also throw an exception it that case to signal the invalid
-        # database state.
-        return self.funcdata.get_object(experiment.fmri_data)
+        # Get functional data object handle from database.
+        func_data = self.funcdata.get_object(experiment.fmri_data)
+        # Create fMRI handle from functional data handle
+        return funcdata.FMRIDataHandle(func_data, experiment)
 
     def experiments_fmri_upsert_property(self, identifier, key, value=None):
         """Upsert property of fMRI data object associated with given experiment.
@@ -746,6 +745,29 @@ class SCODataStore(object):
             Handle for image group object or None if identifier is unknown
         """
         return self.image_groups.get_object(identifier)
+
+    def image_group_images_list(self, identifier, limit=-1, offset=-1):
+        """List images in the given image group.
+
+        Parameters
+        ----------
+        identifier : string
+            Unique image group object identifier
+        limit : int
+            Limit number of results in returned object listing
+        offset : int
+            Set offset in list (order as defined by object store)
+
+        Returns
+        -------
+        ObjectListing
+            Listing of group images
+        """
+        return self.image_groups.list_images(
+            identifier,
+            limit=limit,
+            offset=offset
+        )
 
     def image_groups_list(self, limit=-1, offset=-1):
         """Retrieve list of all image groups in the data store.

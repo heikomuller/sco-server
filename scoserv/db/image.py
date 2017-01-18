@@ -96,6 +96,8 @@ class ImageGroupHandle(datastore.DataObjectHandle):
     ----------
     images : List(string)
         List of object identifier for images in the collection
+    options: Dictionary(attribute.Attribute)
+        Dictionary of typed attributes defining the image group options
     """
     def __init__(self, identifier, properties, directory, images, options, timestamp=None, is_active=True):
         """Initialize the image group handle. The directory references a
@@ -476,6 +478,40 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         for document in self.collection.find({'active' : True, 'images.identifier' : image_id}):
             result.append(str(document['_id']))
         return result
+
+    def list_images(self, identifier, offset=-1, limit=-1):
+        """
+        Parameters
+        ----------
+        identifier : string
+            Unique image group identifier
+        limit : int
+            Limit number of results in returned object listing
+        offset : int
+            Set offset in list (order as defined by object store)
+
+        Returns
+        -------
+        ObjectListing
+            Listing og group images or None if image group does not exist
+        """
+        # Get image group to ensure that it exists. The object contains the full
+        # list of group images
+        img_grp = self.get_object(identifier)
+        if img_grp is None:
+            return None
+        # Extract subset of group images based on offset and limit arguments
+        total_count = len(img_grp.images)
+        items = []
+        if offset < total_count:
+            if limit > 0:
+                list_end = min((offset + limit), total_count)
+            else:
+                list_end = total_count
+            for i in range(offset, list_end):
+                items.append(img_grp.images[i])
+        # Return object listing
+        return datastore.ObjectListing(items, offset, limit, total_count)
 
     def to_json(self, img_coll):
         """Create a Json-like dictionary for image group. Extends the basic

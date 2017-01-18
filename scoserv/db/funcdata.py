@@ -73,6 +73,39 @@ class FunctionalDataHandle(datastore.DataObjectHandle):
         return os.path.join(self.directory, self.properties[datastore.PROPERTY_FILENAME])
 
 
+class FMRIDataHandle(FunctionalDataHandle):
+    """Handle to access and manipulate brain responses MRI data object that is
+    associated with an experiment. Extends the functional data handle with a
+    reference to the associated. experiment
+
+    Attributes
+    ----------
+    experiment : string
+        Unique experiment identifier the fMRI data object is associated with
+    """
+    def __init__(self, func_data, experiment):
+        """Initialize the object handle. The directory references a directory
+        on the local disk that contains the functional data archive file.
+
+        Parameters
+        ----------
+        func_data : FunctionalDataHandle
+            Handle for functional data object
+        experiment : string
+            Unique experiment identifier the fMRI data object is associated with
+        """
+        # Initialize super class
+        # Initialize super class
+        super(FMRIDataHandle, self).__init__(
+            func_data.identifier,
+            func_data.properties,
+            func_data.directory,
+            timestamp=func_data.timestamp,
+            is_active=func_data.is_active
+        )
+        self.experiment = experiment
+
+
 # ------------------------------------------------------------------------------
 #
 # Object Store

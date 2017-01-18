@@ -1,11 +1,25 @@
 """Collection of classes and methods to generate URL's for API resources."""
 
-import reqexcpt as exceptions
 import utils
 
 
 # ------------------------------------------------------------------------------
-# Query parameter for object listings
+#
+# Constants
+#
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Object listing element names
+# ------------------------------------------------------------------------------
+
+# Reference type label
+LIST_KEY = 'rel'
+# Reference value label
+LIST_VALUE = 'href'
+
+# ------------------------------------------------------------------------------
+# Object listing query parameter
 # ------------------------------------------------------------------------------
 
 # List of attributes to include for each item in listings
@@ -18,473 +32,146 @@ QPARA_OFFSET = 'offset'
 QPARA_STATE = 'state'
 
 # ------------------------------------------------------------------------------
-# Decorator for pagination of object listing URL's
+# Reference list keys
 # ------------------------------------------------------------------------------
 
-class PaginationDecorator:
-    """Decorator for URLs. Provides methods to decorate a given URL for
-    navigation to the first, last, previous, and next page in a listing of
-    objects.
-    """
-    def __init__(self, url, offset, limit, total_count, properties):
-        """Initialize the URL and the current values for relevant list navigation
-        and retrieval query parameter.
+# Delete object
+REF_KEY_DELETE = 'delete'
+# Download data file
+REF_KEY_DOWNLOAD = 'download'
+# Get experiments fMRI data
+REF_KEY_FMRI_GET = 'fmri.get'
+# Update experiments fMRI data
+REF_KEY_FMRI_UPLOAD = 'fmri.upload'
+# Navigate to first page in object listing
+REF_KEY_PAGE_FIRST = 'first'
+# Navigate to last page in object listing
+REF_KEY_PAGE_LAST = 'last'
+# Navigate to next page in object listing
+REF_KEY_PAGE_NEXT = 'next'
+# Navigate to previous page in object listing
+REF_KEY_PAGE_PREVIOUS = 'prev'
+# List experiment predictions
+REF_KEY_PREDICTIONS_LIST = 'predictions.list'
+# Create new predictive model runs
+REF_KEY_PREDICTIONS_RUN = 'predictions.run'
+# Self reference
+REF_KEY_SELF = 'self'
+# Update object options
+REF_KEY_UPDATE_OPTIONS = 'options'
+# Upsert object property
+REF_KEY_UPSERT_PROPERTY = 'properties'
+
+# ------------------------------------------------------------------------------
+# Url components
+# ------------------------------------------------------------------------------
+
+# Url component for experiments
+URL_KEY_EXPERIMENTS = 'experiments'
+# Url component for fMRI data
+URL_KEY_FMRI = 'fmri'
+# Url component for image objects
+URL_KEY_IMAGES = 'images'
+# Url component for image file objects
+URL_KEY_IMAGE_FILES = 'files'
+# Url component for image group objects
+URL_KEY_IMAGE_GROUPS = 'groups'
+# Url component for model run objects
+URL_KEY_PREDICTIONS = 'predictions'
+# Url component for subjects
+URL_KEY_SUBJECTS = 'subjects'
+
+# Url suffix for download references
+URL_SUFFIX_DOWNLOAD = 'data'
+#Url suffix for images in an image group
+URL_SUFFIX_IMAGES = 'images'
+#Url suffix for references to update object options
+URL_SUFFIX_OPTIONS = 'options'
+# Url suffix for references to upsert object properties
+URL_SUFFIX_PROPERTIES = 'properties'
+
+
+# ------------------------------------------------------------------------------
+#
+# Navigation references factory for object listing pagination
+#
+# ------------------------------------------------------------------------------
+
+class PaginationReferenceFactory(object):
+    """Factory for navigation references for object listings."""
+    def __init__(self, object_listing, properties, url):
+        """Initialize object listing properties that are used for pagination Url
+        generation.
 
         Parameters
         ----------
+        object_listing : db.datastore.ObjectListing
+            The object listing result for which navigation references are
+            generated
+        properties: List(string)
+            List of additional properties to be included in object listing.
         url : string
-            The base URL that is being decorated. The URL references an object
-            listing. It is expected that the URL does not contain a query part.
-        offset : int
-            The current offset in the object listing (ignored if < 0)
-        limit : int
-            Maximum number listing of entries to be returned. A negative value
-            indicates that all elements are to be returned.
-        total_count : int
-            Total number of elements in the object listing.
-        properties:
-            Value for the properties to be included parameter. Ignored if None
-            or empty.
+            Base Url for object listing
         """
         self.url = url
-        self.offset = offset
-        self.limit = limit
-        self.total_count = total_count
-        self.properties = properties
+        self.offset = object_listing.offset
+        self.limit = object_listing.limit
+        self.total_count = object_listing.total_count
+        self.properties = ','.join(properties) if not properties is None else None
 
-    def decorate(self, page_offset):
-        """Get decorated URL to navigate to the first page in the referenced
-        object listing.
+    def decorate_listing_url(self, offset):
+        """Get decorated URL to navigate object listing. Only the offset value
+        changes for different navigation Url's.
 
         Parameters
         ----------
-        page_offset : int
+        offset : int
             Index of first element of the page that is to be displayed.
 
         Returns
         -------
         string
-            Decorated object listing URL.
+            Decorated object listing Url.
         """
-        query = QPARA_OFFSET + '=' + str(page_offset)
+        query = QPARA_OFFSET + '=' + str(offset)
         if self.limit >= 0:
             query += '&' + QPARA_LIMIT + '=' + str(self.limit)
         if not self.properties is None:
             query += '&' + QPARA_PROPERTIES + '=' + self.properties
         return self.url + '?' + query
 
-    def first(self):
-        """Get decorated URL to navigate to the first page in the referenced
-        object listing.
+    def navigation_references(self):
+        """Set of navigation references for object listing.
 
         Returns
         -------
-        string
-            Decorated object listing URL.
+        List
+            List of reference objects, i.e., [{rel:..., href:...}]
         """
-        return self.decorate(0)
-
-    def last(self):
-        """Get decorated URL to navigate to the last page in the referenced
-        object listing.
-
-        Returns
-        -------
-        string
-            Decorated object listing URL.
-        """
-        # Check if the given values for limit and total_count allow more than
-        # one page. Otherwiese, navigate to the first page.
-        if self.limit >= 0 and self.limit < self.total_count:
-            return self.decorate(self.total_count - self.limit)
-        else:
-            return self.first()
-
-    def next(self):
-        """Get decorated URL to navigate to the next page in the referenced
-        object listing. The result is None if the next page would be empty
-        because the offset is after the last element.
-
-        Returns
-        -------
-        string
-            Decorated object listing URL or None.
-        """
-        # Return None if offset or limit are not set, i.e., have
-        # negative value.
-        if self.offset < 0 or self.limit < 0:
-            return None
-        # Check whether there is a next page or not
-        if (self.offset + self.limit) < self.total_count:
-            return self.decorate(self.offset + self.limit)
-        else:
-            return None
-
-    def prev(self):
-        """Get decorated URL to navigate to the previous page in the referenced
-        object listing.
-
-        Returns
-        -------
-        string
-            Decorated object listing URL.
-        """
-        # Return None if offset or limit are not set, i.e., have
-        # negative value.
-        if self.offset < 0 or self.limit < 0:
-            return None
-        # Check if the previous page is the first one.
-        if self.limit <= self.offset:
-            return self.decorate(self.offset - self.limit)
-        else:
-            return self.first()
-
-class ObjectUrls(object):
-    """Factory object for individual object type Urls. This class implements
-    the general pattern for resource Urls.
-
-    The Url factory is intended for 'strong' entities, i.e., objects that have
-    a single key as their identifier.
-
-    Attributes
-    ----------
-    base_url : string
-        Base URL used for all URL's returned by the factory object.
-    class_identifier : string
-        Unique identifier for class objects in the API
-    """
-    def __init__(self, base_url, class_identifier):
-        """ Initialize the URL factory by setting the base url.
-
-        Parameters
-        ----------
-        base_url : string
-            Base URL used for all URL's returned by the factory object.
-        class_identifier : string
-            Unique identifier for class objects in the API
-        """
-        self.base_url = base_url
-        self.class_identifier = class_identifier
-
-    def create(self):
-        """Get Url to create object.
-
-        Returns
-        -------
-        string
-            Resource Url
-        """
-        return self.list()
-
-    def delete(self, identifier):
-        """ Get Url to delete object with given identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique object identifier
-
-        Returns
-        -------
-        string
-            Resource Url
-        """
-        return self.get(identifier)
-
-    def download(self, identifier):
-        """ Get Url to download files associated with object having the given
-        identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique object identifier
-
-        Returns
-        -------
-        string
-            Resource Url
-        """
-        return self.get(identifier) + '/data'
-
-    def get(self, identifier):
-        """ Get Url for a particular object identified by the given identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique object identifier
-
-        Returns
-        -------
-        string
-            Resource Url
-        """
-        return self.list() + '/' + identifier
-
-    def list(self):
-        """Get Url for object listing. This is also the base URL for all other
-        object Urls.
-
-        Returns
-        -------
-        string
-            Resource Url.
-        """
-        return self.base_url + '/' + self.class_identifier
-
-    def update(self, identifier):
-        """ Get Url to update object identified by the given identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique object identifier
-
-        Returns
-        -------
-        string
-            Resource Url
-        """
-        return self.get(identifier)
-
-    def upsert_property(self, identifier):
-        """ Get Url to upsert a property of the functional data object
-        identified by the given identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique functional data object identifier
-
-        Returns
-        -------
-        string
-            Functional data object URL
-        """
-        return self.get(identifier) + '/properties'
-
-
-class ExperimentUrls(ObjectUrls):
-    def __init__(self, base_url, class_identifiers):
-        """ Initialize the URL factory by setting the base url and class
-        identifier.
-
-        Parameters
-        ----------
-        base_url : string
-            Base URL used for all URL's returned by the factory object.
-        class_identifiers : Dictionary()
-            Dictionary of class identifiers for the experiment and its weak
-            entities FMRI and PREDICTION. Expects a dictionary with three
-            keys: 'self' (=class identifier for experiment objects), 'fmri'
-            (= class identifier form functional MRI data objects), and
-            'prediction' (= class identifier form prediction objects).
-        """
-        super(ExperimentUrls, self).__init__(base_url, class_identifiers['self'])
-        self.class_identifiers = class_identifiers
-
-    def fmris_download(self, identifier):
-        """ Get Url to download a functional MRI data file that is associated
-        with an experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique fMRI data object identifier
-
-        Returns
-        -------
-        string
-            Functional data file download URL
-        """
-        return self.fmris_get(identifier) + '/data'
-
-    def fmris_get(self, identifier):
-        """ Get Url to retrieve a functional MRI data object that is associated
-        with an experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique fMRI data object identifier
-
-        Returns
-        -------
-        string
-            Functional data object URL
-        """
-        #return self.fmris_upload(identifier) + '/' + identifier.keys[-1]
-
-    def fmris_upload(self, identifier):
-        """ Get Url to upload a functional MRI data file and associate it with
-        the experiment that is identified by the given identifier.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique experiment object identifier
-
-        Returns
-        -------
-        string
-            Functional data file upload URL
-        """
-        return self.get(identifier) + '/' + self.class_identifiers['fmri']
-
-    def fmris_upsert_property(self, identifier):
-        """ Get Url to upsert property of a functional MRI data object that is
-        associated with an experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique fMRI data object identifier
-
-        Returns
-        -------
-        string
-            Upsert data object property URL
-        """
-        return self.fmris_get(identifier) + '/properties'
-
-    def predictions_create(self, identifier):
-        """ Get Url to create a model run object that is associated with an
-        experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique model run object identifier
-
-        Returns
-        -------
-        string
-            Create model run URL
-        """
-        return self.predictions_list(identifier)
-
-    def predictions_delete(self, identifier):
-        """ Get Url to delete a model run object and its prediction result.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique model run object identifier
-
-        Returns
-        -------
-        string
-            Delete model run URL
-        """
-        return self.predictions_get(identifier)
-
-    def predictions_download(self, identifier):
-        """ Get Url to download prediction result for a model run object that is
-        associated with an experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique model run object identifier
-
-        Returns
-        -------
-        string
-            Download prediction result URL
-        """
-        return self.predictions_get(identifier) + '/data'
-
-    def predictions_get(self, identifier):
-        """ Get Url to retrieve a model run object that is associated with an
-        experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique model run object identifier
-
-        Returns
-        -------
-        string
-            Retrieve model run URL
-        """
-        #return self.predictions_list(identifier) + '/' + identifier.keys[-1]
-
-    def predictions_list(self, identifier):
-        """ Get Url to get a listing of all a model run objects that are
-        associated with an experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique model run object identifier
-
-        Returns
-        -------
-        string
-            List model runs URL
-        """
-        return self.get(identifier) + '/' + self.class_identifiers['prediction']
-
-    def predictions_upsert_property(self, identifier):
-        """ Get Url to upsert property of a model run object that is associated
-        with an experiment.
-
-        Parameters
-        ----------
-        identifier : string
-            Unique model run object identifier
-
-        Returns
-        -------
-        string
-            Upsert data object property URL
-        """
-        return self.predictions_get(identifier) + '/properties'
-
-
-class UrlFactory:
-    """Factory object for Web API URL's. Encapsulates generation of URL's for
-    API resources in a single class.
-
-    Attributes
-    ----------
-    base_url : string
-        Base URL used for all URL's returned by the factory object.
-    experiments : ObjectUrls
-        Url factory for experiment resources
-    images : ObjectUrls
-        Url factory for image resources
-    image_groups : ObjectUrls
-        Url factory for image group resources
-    subjects : ObjectUrls
-        Url factory for subject resources
-    """
-    def __init__(self, base_url):
-        """ Initialize the URL factory by setting the base url.
-
-        Parameters
-        ----------
-        base_url : string
-            Base URL used for all URL's returned by the factory object.
-        """
-        self.base_url = base_url
-        # Remove trailing '/'
-        while self.base_url.endswith('/'):
-            self.base_url = self.base_url[:-1]
-        self.experiments = ExperimentUrls(self.base_url, {
-            'self' : 'experiments',
-            'fmri' : 'fmri',
-            'prediction' : 'predictions'
-        })
-        self.images = ObjectUrls(self.base_url, 'images/files')
-        self.image_groups = ObjectUrls(self.base_url, 'images/groups')
-        self.subjects = ObjectUrls(self.base_url, 'subjects')
+        # Include listing self reference
+        nav = {REF_KEY_SELF : self.url}
+        # Navigate to first page
+        nav[REF_KEY_PAGE_FIRST] = self.decorate_listing_url(0)
+        # Navigate to last page
+        if self.limit > 0 and (self.total_count - self.limit) > 0:
+            nav[REF_KEY_PAGE_LAST] = self.decorate_listing_url(self.total_count - self.limit)
+        # Navigate to next page
+        if self.offset >= 0 and self.limit > 0 and (self.offset + self.limit) < self.total_count:
+            nav[REF_KEY_PAGE_NEXT] = self.decorate_listing_url(self.offset + self.limit)
+        # Navigate to previous page
+        if self.offset > 0 and self.limit > 0:
+            if self.limit <= self.offset:
+                nav[REF_KEY_PAGE_PREVIOUS] = self.decorate_listing_url(self.offset - self.limit)
+            else:
+                nav[REF_KEY_PAGE_PREVIOUS] = self.decorate_listing_url(0)
+        # Return list of references
+        return to_references(nav)
 
 
 # ------------------------------------------------------------------------------
-# HATEOAS - Object references
+#
+# Hypermedia as the Engine of Application State (HATEOAS) - References
+#
 # ------------------------------------------------------------------------------
 
 class HATEOASReferenceFactory:
@@ -494,99 +181,214 @@ class HATEOASReferenceFactory:
 
     Attrributes
     -----------
-    urls : UrlFactory
-        Factory for resource Urls'
+    base_url : string
+        Base Url for all resource references
     """
-    def __init__(self, urls):
-        """Initialize the factory object by providing the UrlFactory use for
+    def __init__(self, base_url):
+        """Initialize the factory object by providing the base Url for
         generating resource references.
 
         Parameters
         ----------
-        urls : UrlFactory
-            Factory for resource Url's
+        base_url : string
+            Base Url for all resource references'
         """
-        self.urls = urls
+        self.base_url = base_url
+        # Remove trailing '/'
+        while self.base_url.endswith('/'):
+            self.base_url = self.base_url[:-1]
 
-    def object_references(self, db_obj):
-        """Get object specific list of references.
+    def experiment_reference(self, experiment_id):
+        """Self reference to experiment object.
 
         Parameters
         ----------
-        db_obj : (subclass of)datastore.ObjectHandle
+        experiments_id : string
+            Unique experiment identifier
+
+        Returns
+        -------
+        string
+            Experiment Url
+        """
+        return self.experiments_reference() + '/' + experiment_id
+
+    def experiments_reference(self):
+        """Base Url for experiment objects.
+
+        Returns
+        -------
+        string
+            Experiment objects base Url
+        """
+        return self.base_url + '/' + URL_KEY_EXPERIMENTS
+
+    def experiments_fmri_reference(self, experiment_id):
+        """Base Url for experiments fMRI objects. fMRI's are weak entities.
+        Their Urls are prefixed by the identifying experiment Url.
+
+        Parameters
+        ----------
+        experiment_id : string
+            Unique experiment identifier
+
+        Returns
+        -------
+        string
+            Functional MRI objects base Url
+        """
+        # Url for identifying experiment
+        experiment_url = self.experiment_reference(experiment_id)
+        return experiment_url + '/' + URL_KEY_FMRI
+
+    def experiments_predictions_reference(self, experiment_id):
+        """Base Url for experiments model runs. Model runs are weak entities.
+        Their Urls are prefixed by the identifying experiment Url.
+
+        Parameters
+        ----------
+        experiment_id : string
+            Unique experiment identifier
+
+        Returns
+        -------
+        string
+            Model run objects base Url
+        """
+        # Url for identifying experiment
+        experiment_url = self.experiment_reference(experiment_id)
+        return experiment_url + '/' + URL_KEY_PREDICTIONS
+
+    def image_file_reference(self, image_id):
+        """Self reference for image file with given identifier.
+
+        Parameters
+        ----------
+        image_id : string
+            Unique image file identifier
+
+        Returns
+        -------
+        string
+            Image File Url
+        """
+        return self.image_files_reference() + '/' + image_id
+
+    def image_files_reference(self):
+        """Base Url for image file objects.
+
+        Returns
+        -------
+        string
+            Image file objects base Url
+        """
+        return self.base_url + '/' + URL_KEY_IMAGES + '/' + URL_KEY_IMAGE_FILES
+
+    def image_group_images_list_reference(self, identifier):
+        """Base Url to list images in a given image group object.
+
+        Parameters
+        ----------
+        identifier : string
+            Unique image group identifier
+
+        Returns
+        -------
+        string
+            Group images listing Url
+        """
+        return self.base_url + '/' + URL_KEY_IMAGES + '/' + URL_KEY_IMAGE_GROUPS + '/' + identifier + '/' + URL_SUFFIX_IMAGES
+
+    def image_group_reference(self, image_group_id):
+        """Self reference for image group with given identifier.
+
+        Parameters
+        ----------
+        image_group_id : string
+            Unique image group identifier
+
+        Returns
+        -------
+        string
+            Image Group Url
+        """
+        return self.image_groups_reference() +'/' + image_group_id
+
+    def image_groups_reference(self):
+        """Base Url for image group objects.
+
+        Returns
+        -------
+        string
+            Image groups objects base Url
+        """
+        return self.base_url + '/' + URL_KEY_IMAGES + '/' + URL_KEY_IMAGE_GROUPS
+
+    def object_references(self, obj):
+        """List of references for given object. Object type will determine the
+        references in the returned listing.
+
+        Raises ValueError for objects of unknown types. For each new data type
+        that is supported by the SCO data store this method should be extended.
+
+        Parameters
+        ----------
+        obj : (sub-class of)ObjectHandle
+            Handle for database object
 
         Returns
         -------
         List
-            List of reference objects, i.e., [{rel:..., href:...}].
+            List of reference objects, i.e., [{rel:..., href:...}]
         """
-        links = {}
-        # Object type specific references. Raises an exception if object type
-        # is unknown.
-        if db_obj.is_subject:
-            links['delete'] = self.urls.subjects.delete(db_obj.identifier)
-            links['download'] = self.urls.subjects.download(db_obj.identifier)
-            links['upsert'] = self.urls.subjects.upsert_property(db_obj.identifier)
-        elif db_obj.is_experiment:
-            links['delete'] = self.urls.experiments.delete(db_obj.identifier)
-            links['fmri.upload'] = self.urls.experiments.fmris_upload(db_obj.identifier)
-            links['predictions.create'] = self.urls.experiments.predictions_create(db_obj.identifier)
-            links['predictions.list'] = self.urls.experiments.predictions_list(db_obj.identifier)
-            links['upsert'] = self.urls.experiments.upsert_property(db_obj.identifier)
-        elif db_obj.is_functional_data:
-            links['download'] = self.urls.experiments.fmris_download(db_obj.identifier)
-            links['upsert'] = self.urls.experiments.fmris_upsert_property(db_obj.identifier)
-        elif db_obj.is_model_run:
-            # Only include download link if model run finished successfully
-            if db_obj.is_success:
-                links['download'] = self.urls.experiments.predictions_download(db_obj.identifier)
-            links['delete'] = self.urls.experiments.predictions_delete(db_obj.identifier)
-            links['upsert'] = self.urls.experiments.predictions_upsert_property(db_obj.identifier)
-        elif db_obj.is_image:
-            links['delete'] = self.urls.images.delete(db_obj.identifier)
-            links['download'] = self.urls.images.download(db_obj.identifier)
-            links['upsert'] = self.urls.images.upsert_property(db_obj.identifier)
-        elif db_obj.is_image_group:
-            links['delete'] = self.urls.image_groups.delete(db_obj.identifier)
-            links['download'] = self.urls.image_groups.download(db_obj.identifier)
-            links['upsert'] = self.urls.image_groups.upsert_property(db_obj.identifier)
+        if obj.is_experiment:
+            # Get base references.
+            self_ref = self.experiment_reference(obj.identifier)
+            refs = base_reference_set(self_ref)
+            # Delete download reference from basic set
+            del refs[REF_KEY_DOWNLOAD]
+            # Add reference for predictions listing and to run new prediction
+            prediction_url = self.experiments_predictions_reference(obj.identifier)
+            refs[REF_KEY_PREDICTIONS_LIST] = prediction_url
+            refs[REF_KEY_PREDICTIONS_RUN] = prediction_url
+            # Add reference to fMRI data (if present) and to upload fMRI
+            fmri_url = self.experiments_fmri_reference(obj.identifier)
+            refs[REF_KEY_FMRI_UPLOAD] = fmri_url
+            if not obj.fmri_data is None:
+                refs[REF_KEY_FMRI_GET] = fmri_url
+            # Return reference list
+            return to_references(refs)
+        elif obj.is_functional_data:
+            # fMRI data objecs have the basic reference set
+            self_ref = self.experiments_fmri_reference(obj.experiment)
+            return to_references(base_reference_set(self_ref))
+        elif obj.is_model_run:
+            # Get base references.
+            type_url = self.experiments_predictions_reference(obj.experiment)
+            refs = base_reference_set(type_url + '/' + obj.identifier)
+            # Remove download link if model run is not in SUCCESS state
+            if not obj.state.is_success:
+                del refs[REF_KEY_DOWNLOAD]
+            # Return reference list
+            return to_references(refs)
+        elif obj.is_image:
+            # Image files have the basic reference set
+            self_ref = self.image_file_reference(obj.identifier)
+            return to_references(base_reference_set(self_ref))
+        elif obj.is_image_group:
+            # Get basic reference set
+            self_ref = self.image_group_reference(obj.identifier)
+            refs = base_reference_set(self_ref)
+            # Add reference to update image group options
+            refs[REF_KEY_UPDATE_OPTIONS] = self_ref + '/' + URL_SUFFIX_OPTIONS
+            # Return reference list
+            return to_references(refs)
+        elif obj.is_subject:
+            # Subjects have the basic reference set
+            self_ref = self.subject_reference(obj.identifier)
+            return to_references(base_reference_set(self_ref))
         else:
-            raise exceptions.UnknownObjectType(db_obj.type)
-        # Return concatenation of self reference and object specific references.
-        return self.to_references(links) + self.object_self_reference(db_obj)
-
-    def object_self_reference(self, db_obj):
-        """Get object specific self reference as single item in a reference set.
-
-        Parameters
-        ----------
-        db_obj : (subclass of)datastore.ObjectHandle
-
-        Returns
-        -------
-        List
-            List of reference objects, i.e., [{rel:..., href:...}], with one
-            item.
-        """
-        links = {}
-        # Add self reference depending on object type. Raises an exception if
-        # object type is unknown.
-        if db_obj.is_subject:
-            ref = self.urls.subjects.get(db_obj.identifier)
-        elif db_obj.is_experiment:
-            ref = self.urls.experiments.get(db_obj.identifier)
-        elif db_obj.is_functional_data:
-            ref = self.urls.experiments.fmris_get(db_obj.identifier)
-        elif db_obj.is_model_run:
-            ref = self.urls.experiments.predictions_get(db_obj.identifier)
-        elif db_obj.is_image:
-            ref = self.urls.images.get(db_obj.identifier)
-        elif db_obj.is_image_group:
-            ref = self.urls.image_groups.get(db_obj.identifier)
-        else:
-            raise exceptions.UnknownObjectType(db_obj.type)
-        # Return list with one (self) reference object.
-        return self.to_references({'self' : ref})
+            raise ValueError('unknown object type')
 
     def service_references(self):
         """Get primary references to access resources and methods of the
@@ -597,31 +399,95 @@ class HATEOASReferenceFactory:
         List
             List of reference objects, i.e., [{rel:..., href:...}].
         """
-        return self.to_references({
-            'self' : self.urls.base_url,
-            'experiments.create' : self.urls.experiments.create(),
-            'experiments.list' : self.urls.experiments.list(),
-            'subjects.list' : self.urls.subjects.list(),
-            'subjects.upload' : self.urls.subjects.create(),
-            'images.list' : self.urls.images.list(),
-            'images.upload' : self.urls.images.create(),
-            'imageGroups.list' : self.urls.image_groups.list(),
-            'imageGroups.upload' : self.urls.images.create()
+        return to_references({
+            REF_KEY_SELF : self.base_url
         })
 
-    def to_references(self, dictionary):
-        """Generate a HATEOAS reference listing from a dictionary. Keys in the
-        dictionary define relationships ('rel') and associated values are
-        URL's ('href').
+    def subject_reference(self, subject_id):
+        """Self reference for subject with given identifier.
 
         Parameters
         ----------
-        dictionary : Dictionary
-            Dictionary of references
+        subject_id : string
+            Unique subject identifier
 
         Returns
         -------
-        List
-            List of reference objects, i.e., [{rel:..., href:...}]
+        string
+            Subject Url
         """
-        return utils.to_list(dictionary, label_key='rel', label_value='href')
+        return self.subjects_reference() +'/' + subject_id
+
+    def subjects_reference(self):
+        """Base Url for subject data objects.
+
+        Returns
+        -------
+        string
+            Subjects base Url
+        """
+        return self.base_url + '/' + URL_KEY_SUBJECTS
+
+
+
+# ------------------------------------------------------------------------------
+#
+# Helper Methods
+#
+# ------------------------------------------------------------------------------
+
+def base_reference_set(self_ref):
+    """Default set of references for database objects. Contains self reference,
+    and references to API calls to delete, download, and property upsert.
+
+    Parameters
+    ----------
+    self_ref : string
+        Self reference for object for which reference list is generated
+
+    Returns
+    -------
+    Dictionary
+        Dictionary of references
+    """
+    return {
+        REF_KEY_SELF : self_ref,
+        REF_KEY_DELETE : self_ref,
+        REF_KEY_DOWNLOAD : self_ref + '/' + URL_SUFFIX_DOWNLOAD,
+        REF_KEY_UPSERT_PROPERTY : self_ref + '/' + URL_SUFFIX_PROPERTIES
+    }
+
+
+def self_reference_set(self_ref):
+    """Reference list containing as single element a self-reference to a
+    Web resource.
+
+    Parameters
+    ----------
+    self_ref : string
+        Object self reference Url
+
+    Returns
+    -------
+    List
+        List of reference objects, i.e., [{rel:..., href:...}]
+    """
+    return to_references({REF_KEY_SELF: self_ref})
+
+
+def to_references(dictionary):
+    """Generate a HATEOAS reference listing from a dictionary. Keys in the
+    dictionary define relationships ('rel') and associated values are
+    URL's ('href').
+
+    Parameters
+    ----------
+    dictionary : Dictionary
+        Dictionary of references
+
+    Returns
+    -------
+    List
+        List of reference objects, i.e., [{rel:..., href:...}]
+    """
+    return utils.to_list(dictionary, label_key=LIST_KEY, label_value=LIST_VALUE)

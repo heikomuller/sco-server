@@ -83,7 +83,6 @@ class TestImageManagerMethods(unittest.TestCase):
         self.assertFalse(img_group.is_functional_data)
         self.assertFalse(img_group.is_model_run)
         self.assertFalse(img_group.is_subject)
-
         # Get image group from database and ensure that there are four files
         # in the list, one for each of the images in img_list
         img_group = self.mngr_groups.get_object(img_group.identifier)
@@ -98,6 +97,10 @@ class TestImageManagerMethods(unittest.TestCase):
         # img_group
         for img_id in img_list:
             self.assertTrue(img_group.identifier in self.mngr_groups.get_collections_for_image(img_id))
+        # Ensure the group image listing will only contain three elements
+        # despite limit being 10
+        listing = self.mngr_groups.list_images(img_group.identifier, limit=10, offset=1)
+        self.assertEqual(len(listing.items), 3)
 
     def test_images_update_attributes(self):
         """Test functionality of updating attributes associated with an image

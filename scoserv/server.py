@@ -1,11 +1,16 @@
 #!venv/bin/python
 import os
+import shutil
+import tempfile
 
 from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
+from pymongo import MongoClient
+from werkzeug.utils import secure_filename
 
-import hateoas
 import db.api
+import hateoas
+import serialize
 
 
 # -----------------------------------------------------------------------------
@@ -41,8 +46,17 @@ CORS(app)
 
 # Instantiate the Standard Cortical Observer Data Store.
 db = db.api.SCODataStore(MONGO_DB, DATA_DIR)
-# Factory for object references
-refs = hateoas.HATEOASReferenceFactory(BASE_URL)
+# Serializer for resources. Serializer follows REST architecture constraint to
+# include hypermedia links with responses.
+serializer = serialize.JsonWebAPISerializer(BASE_URL)
+
+
+# ------------------------------------------------------------------------------
+# Constants
+# ------------------------------------------------------------------------------
+
+# Number of elements in object listings if limit is not specified in request
+DEFAULT_LISTING_SIZE = 10
 
 
 # ------------------------------------------------------------------------------
@@ -56,10 +70,9 @@ def index():
     """Overview (GET) - Returns object containing web service name and a list
     of references to various resources.
     """
-    return jsonify({
-        'name': 'Standard Cortical Observer - Web Server API',
-        'links' : refs.service_references()
-    })
+    return jsonify(
+        serializer.service_description('Standard Cortical Observer - Web API')
+    )
 
 
 # ------------------------------------------------------------------------------
@@ -76,7 +89,7 @@ def experiments_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate experiment listing and return Json object
     return jsonify(
-        refs.decorate_listing(
+        serializer.experiments_to_json(
             db.experiments_list(limit=limit, offset=offset),
             prop_set
         )
@@ -94,7 +107,7 @@ def experiments_get(experiment_id):
         raise ResourceNotFound(experiment_id)
     else:
         # Return Json serialization of object.
-        return jsonify(refs.decorate_object(experiment))
+        return jsonify(serializer.experiment_to_json(experiment))
 
 
 @app.route('/experiments', methods=['POST'])
@@ -116,10 +129,7 @@ def experiments_create():
         datastore.ObjectId(json_obj['images'])
     )
     # Return result including list of references for new experiment
-    return jsonify({
-        'result' : 'SUCCESS',
-        'links': refs.object_references(experiment)
-    }), 201
+    return jsonify(serializer.response_success(experiment)), 201
 
 
 @app.route('/experiments/<string:experiment_id>', methods=['DELETE'])
@@ -169,7 +179,7 @@ def experiments_fmri_get(experiment_id):
         raise ResourceNotFound(experiment_id + ':fmri')
     else:
         # Return Json serialization of object.
-        return jsonify(refs.decorate_object(fmri))
+        return jsonify(serializer.experiment_fmri_to_json(fmri))
 
 
 @app.route('/experiments/<string:experiment_id>/fmri', methods=['POST'])
@@ -178,20 +188,19 @@ def experiments_fmri_create(experiment_id):
     file that is associated with a experiment.
     """
     # Get the uploaded file. Method raises InvalidRequest if no file was given
-    upload_file = get_upload_file(request)
+    tmp_dir, upload_file = get_upload_file(request)
     # Upload the fMRI data and associate it with the experiment.
     fmri = db.experiments_fmri_create(
         experiment_id,
         upload_file
     )
+    # Delete temporary directory
+    shutil.rmtree(tmp_dir)
     # If fMRI is None the given experiment does not exist
     if fmri is None:
         raise ResourceNotFound(experiment_id + ':fmri')
     # Return result including a list of references to updated experiment
-    return jsonify({
-        'result' : 'SUCCESS',
-        'links': refs.object_references(fmri)
-    })
+    return jsonify(serializer.response_success(fmri)), 201
 
 
 @app.route('/experiments/<string:experiment_id>/fmri', methods=['DELETE'])
@@ -259,12 +268,13 @@ def experiments_predictions_list(experiment_id):
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate prediction listing and return Json object
     return jsonify(
-        refs.decorate_listing(
+        serializer.experiment_predictions_to_json(
             db.experiments_predictions_list(
                 experiment_id,
                 limit=limit,
                 offset=offset),
-            prop_set
+            prop_set,
+            experiment_id
         )
     )
 
@@ -281,7 +291,7 @@ def experiments_predictions_get(experiment_id, prediction_id):
         raise ResourceNotFound(experiment_id + ':' + prediction_id)
     else:
         # Return Json serialization of object.
-        return jsonify(refs.decorate_object(prediction))
+        return jsonify(serializer.experiment_prediction_to_json(prediction))
 
 
 @app.route('/experiments/<string:experiment_id>/predictions', methods=['POST'])
@@ -307,10 +317,7 @@ def experiments_predictions_create(experiment_id):
     if prediction is None:
         raise ResourceNotFound(experiment_id)
     # Return result including list of references for new model run.
-    return jsonify({
-        'result' : 'SUCCESS',
-        'links': refs.object_references(prediction)
-    }), 201
+    return jsonify(serializer.response_success(prediction)), 201
 
 
 @app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>', methods=['DELETE'])
@@ -340,7 +347,7 @@ def experiments_predictions_download(experiment_id, prediction_id):
     return send_file(
         file_info.file,
         mimetype=file_info.mime_type,
-        as_attachment=False,
+        as_attachment=True,
         attachment_filename=file_info.name
     )
 
@@ -379,7 +386,7 @@ def image_files_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate image file listing and return Json object
     return jsonify(
-        refs.decorate_listing(
+        serializer.image_files_to_json(
             db.image_files_list(limit=limit, offset=offset),
             prop_set
         )
@@ -396,7 +403,7 @@ def image_files_get(image_id):
         raise ResourceNotFound(image_id)
     else:
         # Return Json serialization of object.
-        return jsonify(refs.decorate_object(img))
+        return jsonify(serializer.image_file_to_json(img))
 
 
 @app.route('/images/files/<string:image_id>', methods=['DELETE'])
@@ -453,13 +460,14 @@ def image_files_upsert_property(image_id):
 
 @app.route('/images/groups')
 def image_groups_list():
-    """List image groups (GET) - List of all image group objects in the database."""
+    """List image groups (GET) - List of all image group objects in the
+    database."""
     # Get listing arguments. Method raises exception if argument values are
     # of invalid type
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate image group listing and return Json object
     return jsonify(
-        refs.decorate_listing(
+        serializer.image_groups_to_json(
             db.image_groups_list(limit=limit, offset=offset),
             prop_set
         )
@@ -476,7 +484,7 @@ def image_groups_get(image_group_id):
         raise ResourceNotFound(image_group_id)
     else:
         # Return Json serialization of object.
-        return jsonify(refs.decorate_object(img_grp))
+        return jsonify(serializer.image_group_to_json(img_grp))
 
 
 @app.route('/images/groups/<string:image_group_id>', methods=['DELETE'])
@@ -505,9 +513,25 @@ def image_groups_download(image_group_id):
     return send_file(
         file_info.file,
         mimetype=file_info.mime_type,
-        as_attachment=False,
+        as_attachment=True,
         attachment_filename=file_info.name
     )
+
+
+@app.route('/images/groups/<string:image_group_id>/images')
+def image_groups_images_list(image_group_id):
+    """List image group images (GET)"""
+    # Get listing arguments. Method raises exception if argument values are
+    # of invalid type. Property set is ignored since group images have no
+    # additional properties
+    offset, limit, prop_set = get_listing_arguments(request)
+    # Get group image listing. Return 404 if result is None, i.e., image group
+    # is unknown
+    listing = db.image_group_images_list(image_group_id, limit=limit, offset=offset)
+    if limit is None:
+        raise ResourceNotFound(image_group_id)
+    # Decorate group image listing and return Json object
+    return jsonify(serializer.image_group_images_to_json(listing, image_group_id))
 
 
 @app.route('/images/groups/<string:image_group_id>/options', methods=['POST'])
@@ -562,14 +586,13 @@ def images_create():
     # Upload the file to get handle. Type will depend on suffix of uploaded
     # file. A value error will be raised if file is invalid.
     try:
-        img_handle =  db.images_create(get_upload_file(request))
+        tmp_dir, upload_file = get_upload_file(request)
+        img_handle =  db.images_create(upload_file)
+        shutil.rmtree(tmp_dir)
     except ValueError as err:
         raise InvalidRequest(str(err))
     # Return result including list of references for the new database object.
-    return jsonify({
-        'result' : 'SUCCESS',
-        'links': refs.object_references(img_handle)
-    })
+    return jsonify(serializer.response_success(img_handle)), 201
 
 
 # ------------------------------------------------------------------------------
@@ -586,7 +609,7 @@ def subjects_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate subject listing and return Json object
     return jsonify(
-        refs.decorate_listing(
+        serializer.subjects_to_json(
             db.subjects_list(limit=limit, offset=offset),
             prop_set
         )
@@ -605,7 +628,7 @@ def subjects_get(subject_id):
         raise ResourceNotFound(subject_id)
     else:
         # Return Json serialization of object.
-        return jsonify(refs.decorate_object(subject))
+        return jsonify(serializer.subject_to_json(subject))
 
 
 @app.route('/subjects', methods=['POST'])
@@ -613,12 +636,11 @@ def subjects_create():
     """Upload Subject (POST) - Upload an brain anatomy MRI archive file."""
     # Upload the given file to get an object handle for new subject. Method
     # throws InvalidRequest exception if necessary.
-    subject =  db.subjects_create(get_upload_file(request))
+    tmp_dir, upload_file = get_upload_file(request)
+    subject =  db.subjects_create(upload_file)
+    shutil.rmtree(tmp_dir)
     # Return result including a list of references to new subject in database.
-    return jsonify({
-        'result' : 'SUCCESS',
-        'links': refs.object_references(subject)
-    })
+    return jsonify(serializer.response_success(subject)), 201
 
 
 @app.route('/subjects/<string:subject_id>', methods=['DELETE'])
@@ -780,7 +802,7 @@ def get_attributes(json_array):
     return result
 
 
-def get_listing_arguments(request):
+def get_listing_arguments(request, default_limit=DEFAULT_LISTING_SIZE):
     """Extract listing arguments from given request. Returns default values
     for parameters not present in the request.
 
@@ -788,6 +810,8 @@ def get_listing_arguments(request):
     ----------
     request : flask.request
         Flask request object
+    default_limit : int
+        Default listing size if limit argument is not given in request
 
     Returns
     -------
@@ -798,7 +822,7 @@ def get_listing_arguments(request):
     # values are not integer.
     try:
         offset = int(request.args[hateoas.QPARA_OFFSET]) if hateoas.QPARA_OFFSET in request.args else 0
-        limit = int(request.args[hateoas.QPARA_LIMIT]) if hateoas.QPARA_LIMIT in request.args else -1
+        limit = int(request.args[hateoas.QPARA_LIMIT]) if hateoas.QPARA_LIMIT in request.args else default_limit
     except ValueError as err:
         raise InvalidRequest(str(err))
     # Get the set of attributes that are included in the result listing. By
@@ -812,6 +836,8 @@ def get_upload_file(request):
     file and returns the file. Raise InvalidRequest exception if request does
     not contain an uploded file.
 
+    Creates a temporal directory and saves the uploaded file in that directory.
+
     Parameters
     ----------
     request : flask.request
@@ -819,8 +845,9 @@ def get_upload_file(request):
 
     Returns
     -------
-    File Object
-        File object in upload request.
+    Temp Dir, File name
+        File object in upload request and reference to created temporary
+        directory.
     """
     # Make sure that the post request has the file part
     if 'file' not in request.files:
@@ -829,8 +856,12 @@ def get_upload_file(request):
     # A browser may submit a empty part without filename
     if file.filename == '':
         raise InvalidRequest('empty file name')
-    # Call upload method of API
-    return file
+    # Save uploaded file to temp directory
+    temp_dir = tempfile.mkdtemp()
+    filename = secure_filename(file.filename)
+    upload_file = os.path.join(temp_dir, filename)
+    file.save(upload_file)
+    return temp_dir, upload_file
 
 
 def get_upsert_property(request):
@@ -900,7 +931,7 @@ def get_upsert_response(state, object_id, key, value):
 # Error Handler
 # ------------------------------------------------------------------------------
 
-@app.errorhandler(exceptions.APIRequestException)
+@app.errorhandler(APIRequestException)
 def invalid_request_or_resource_not_found(error):
     """JSON response handler for invalid requests or requests that access
     unknown resources.

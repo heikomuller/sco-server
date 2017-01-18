@@ -247,7 +247,7 @@ class ObjectListing(object):
 
     Attributes
     ----------
-    items : List(ObjectHandle)
+    items : List(ObjectHandle | image.GroupImage)
         List of objects that are subclass of ObjectHandle.
     limit : int
         Result has been limited to not include all items (or -1 for all)

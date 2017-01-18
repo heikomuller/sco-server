@@ -67,7 +67,7 @@ paths:
                 200:
                     description: List of experiments
                     schema:
-                        $ref: "#/definitions/DBObjectListing"
+                        $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
         post:
@@ -124,9 +124,9 @@ paths:
                 200:
                     description: Experiment object
                     schema:
-                        $ref: "#/definitions/DBObjectHandle"
+                        $ref: "#/definitions/ExperimentHandle"
                 404:
-                    description: Unknown experiment object
+                    description: Unknown experiment
         delete:
             summary: Delete experiment
             description: Delete experiment object from database
@@ -173,7 +173,7 @@ paths:
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
-                    description: Unknown experiment object
+                    description: Unknown experiment
     /experiments/{experimentId}/fmri:
         get:
             summary: Get fMRI data
@@ -194,7 +194,7 @@ paths:
                 200:
                     description: Functional MRI data object
                     schema:
-                        $ref: "#/definitions/DBObjectHandle"
+                        $ref: "#/definitions/FMRIHandle"
                 404:
                     description: Unknown functional MRI data object
         post:
@@ -227,7 +227,7 @@ paths:
                 400:
                     description: Invalid file or request
                 404:
-                    description: Unknown experiment object
+                    description: Unknown experiment
         delete:
             summary: Delete fMRI data
             description: Delete fMRI data associated with given experiment
@@ -245,7 +245,7 @@ paths:
                 204:
                     description: Object deleted
                 404:
-                    description: Unknown experiment or fMRI object
+                    description: Unknown experiment or fMRI data object
     /experiments/{experimentId}/fmr/data:
         get:
             summary: Download fMRI data file
@@ -337,11 +337,11 @@ paths:
                 200:
                     description: List of predictions
                     schema:
-                        $ref: "#/definitions/PredicateListing"
+                        $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
                 404:
-                    description: Unknown experiment object
+                    description: Unknown experiment
         post:
             summary: Run Experiment
             description: Start a model run for a given experiment
@@ -379,7 +379,7 @@ paths:
                 400:
                     description: Invalid arguments
                 404:
-                    description: Unknown experiment object
+                    description: Unknown experiment
     /experiments/{experimentId}/predictions/{predictionId}:
         get:
             summary: Get prediction
@@ -407,7 +407,7 @@ paths:
                     schema:
                         $ref: "#/definitions/PredictionHandle"
                 404:
-                    description: Unknown experiment or prediction object
+                    description: Unknown experiment or prediction
         delete:
             summary: Delete prediction
             description: Delete prediction model run from experiment object
@@ -430,7 +430,7 @@ paths:
                 204:
                     description: Object deleted
                 404:
-                    description: Unknown experiment or prediction object
+                    description: Unknown experiment or prediction
     /experiments/{experimentId}/predictions/{predictionId}/data:
         get:
             summary: Download prediction result
@@ -460,7 +460,7 @@ paths:
                     schema:
                         type: file
                 404:
-                    description: Unknown experiment or prediction object
+                    description: Unknown experiment or prediction
     /experiments/{experimentId}/predictions/{predictionId}/properties:
         post:
             summary: Upsert prediction property
@@ -496,7 +496,7 @@ paths:
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
-                    description: Unknown experiment or prediction object
+                    description: Unknown experiment or prediction
     /images/files:
         get:
             summary: List images
@@ -526,7 +526,7 @@ paths:
                 200:
                     description: List of image objects
                     schema:
-                        $ref: "#/definitions/DBObjectListing"
+                        $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
     /images/files/{imageId}:
@@ -548,9 +548,9 @@ paths:
                 200:
                     description: Subject object
                     schema:
-                        $ref: "#/definitions/DBObjectHandle"
+                        $ref: "#/definitions/ObjectHandle"
                 404:
-                    description: Unknown subject
+                    description: Unknown image object
         delete:
             summary: Delete image object
             description: Delete image object from database
@@ -567,7 +567,7 @@ paths:
                 204:
                     description: Object deleted
                 404:
-                    description: Unknown subject
+                    description: Unknown image object
     /images/files/{imageId}/properties:
         post:
             summary: Update image property
@@ -597,7 +597,7 @@ paths:
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
-                    description: Unknown anatomy object
+                    description: Unknown image object
     /images/files/{imageId}/data:
         get:
             summary: Download image file
@@ -652,7 +652,7 @@ paths:
                 200:
                     description: List of image group objects
                     schema:
-                        $ref: "#/definitions/DBObjectListing"
+                        $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
     /images/groups/{imageGroupId}:
@@ -676,7 +676,7 @@ paths:
                     schema:
                         $ref: "#/definitions/ImageGroupHandle"
                 404:
-                    description: Unknown subject
+                    description: Unknown image group
         delete:
             summary: Delete image group object
             description: Delete image group object from database
@@ -693,7 +693,7 @@ paths:
                 204:
                     description: Object deleted
                 404:
-                    description: Unknown subject
+                    description: Unknown image group
     /images/groups/{imageGroupId}/data:
         get:
             summary: Download image groups
@@ -718,6 +718,30 @@ paths:
                         type: file
                 404:
                     description: File not found
+    /images/groups/{imageGroupId}/images:
+        get:
+            summary: List images in group
+            description: Listing for images in an image group
+            operationId: imageGroupListImages
+            tags:
+                - image
+            parameters:
+                - name: imageGroupId
+                  in: path
+                  required: true
+                  description: Unique identifier of image group object
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of images
+                    schema:
+                        $ref: "#/definitions/GroupImageListing"
+                400:
+                    description: Invalid arguments
+                404:
+                    description: Unknown image group
     /images/groups/{imageGroupId}/options:
         post:
             summary: Update image group options
@@ -752,7 +776,7 @@ paths:
                 204:
                     description: Property deleted
                 404:
-                    description: Unknown anatomy object
+                    description: Unknown image group
     /images/groups/{imageGroupId}/properties:
         post:
             summary: Update image group property
@@ -782,7 +806,7 @@ paths:
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
-                    description: Unknown anatomy object
+                    description: Unknown image group
     /images/upload:
         post:
             summary: Create image or image group via file upload
@@ -836,7 +860,7 @@ paths:
                 200:
                     description: List of subject anatomy objects
                     schema:
-                        $ref: "#/definitions/DBObjectListing"
+                        $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
         post:
@@ -881,7 +905,7 @@ paths:
                 200:
                     description: Subject object
                     schema:
-                        $ref: "#/definitions/DBObjectHandle"
+                        $ref: "#/definitions/ObjectHandle"
                 404:
                     description: Unknown subject
         delete:
@@ -930,7 +954,7 @@ paths:
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
-                    description: Unknown anatomy object
+                    description: Unknown subject
     /subjects/{subjectId}/data:
         get:
             summary: Download anatomy file
@@ -966,13 +990,12 @@ definitions:
                 type: string
             value:
                 type: string
-    DBObjectHandle:
+    BaseObjectHandle:
         type: object
         required:
             - id
             - timestamp
             - name
-            - properties
             - links
         properties:
             id:
@@ -981,64 +1004,126 @@ definitions:
                 type: string
             name:
                 type: string
-            properties:
-                type: array
-                items:
-                    $ref: "#/definitions/KeyValuePair"
             links:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
-    DBObjectListing:
+    ExperimentHandle:
+        allOf:
+            - $ref: "#/definitions/ObjectHandle"
+            - properties:
+                subject:
+                    type: object
+                    required:
+                        - id
+                        - links
+                    properties:
+                        id:
+                            type: string
+                        links:
+                            type: array
+                            items:
+                                $ref: "#/definitions/Reference"
+                images:
+                    type: object
+                    required:
+                        - id
+                        - links
+                    properties:
+                        id:
+                            type: string
+                        links:
+                            type: array
+                            items:
+                                $ref: "#/definitions/Reference"
+                fmri:
+                    type: object
+                    required:
+                        - id
+                        - links
+                    properties:
+                        id:
+                            type: string
+                        links:
+                            type: array
+                            items:
+                                $ref: "#/definitions/Reference"
+    FMRIHandle:
+        allOf:
+            - $ref: "#/definitions/ObjectHandle"
+            - properties:
+                experiment:
+                    type: object
+                    required:
+                        - id
+                        - links
+                    properties:
+                        id:
+                            type: string
+                        links:
+                            type: array
+                            items:
+                                $ref: "#/definitions/Reference"
+    GroupImage:
+        type: object
+        required:
+            - id
+            - name
+            - folder
+            - links
+        properties:
+            id:
+                type: string
+            name:
+                type: string
+            folder:
+                type: string
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    GroupImageListing:
         type: object
         required:
             - offset
+            - limit
             - count
+            - totalCount
             - items
             - links
         properties:
-            properties:
-                type: array
-                items:
-                    type: string
             offset:
                 type: integer
             limit:
                 type: integer
             count:
                 type: integer
+            totalCount:
+                type: integer
             items:
                 type: array
                 items:
-                    $ref: "#/definitions/DBObjectHandle"
+                    $ref: "#/definitions/GroupImage"
             links:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
     ImageGroupHandle:
         allOf:
-            - $ref: '#/definitions/DBObjectHandle'
+            - $ref: "#/definitions/ObjectHandle"
             - properties:
                 images:
-                    type: array
-                    items:
-                        type: object
-                        required:
-                            - identifier
-                            - folder
-                            - name
-                            - links
-                        properties:
-                            identifier:
-                                type: string
-                            folder:
-                                type: string
-                            name:
-                                type: string
-                            links:
-                                type: array
-                                items:
-                                    $ref: "#/definitions/Reference"
+                    type: object
+                    required:
+                        - count
+                        - links
+                    properties:
+                        count:
+                            type: integer
+                        links:
+                            type: array
+                            items:
+                                $ref: "#/definitions/Reference"
                 options:
                     type: array
                     items:
@@ -1053,6 +1138,40 @@ definitions:
                 type: string
             value:
                 type: string
+    ObjectHandle:
+        allOf:
+            - $ref: "#/definitions/BaseObjectHandle"
+            - properties:
+                properties:
+                    type: array
+                    items:
+                        $ref: "#/definitions/KeyValuePair"
+    ObjectListing:
+        type: object
+        required:
+            - offset
+            - limit
+            - count
+            - totalCount
+            - items
+            - links
+        properties:
+            offset:
+                type: integer
+            limit:
+                type: integer
+            count:
+                type: integer
+            totalCount:
+                type: integer
+            items:
+                type: array
+                items:
+                    $ref: "#/definitions/BaseObjectHandle"
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
     OpResult:
         type: object
         required:
@@ -1065,46 +1184,32 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
-    PredictionDescriptor:
-        allOf:
-            - $ref: '#/definitions/DBObjectHandle'
-            - properties:
-                status:
-                    type: string
     PredictionHandle:
         allOf:
-            - $ref: '#/definitions/PredictionDescriptor'
+            - $ref: "#/definitions/ObjectHandle"
             - properties:
+                experiment:
+                    type: object
+                    required:
+                        - id
+                        - links
+                    properties:
+                        id:
+                            type: string
+                        links:
+                            type: array
+                            items:
+                                $ref: "#/definitions/Reference"
+                state:
+                    type: string
+                errors:
+                    type: array
+                    items:
+                        type: string
                 arguments:
                     type: array
                     items:
                         $ref: "#/definitions/Attribute"
-    PredictionListing:
-        type: object
-        required:
-            - offset
-            - count
-            - items
-            - links
-        properties:
-            properties:
-                type: array
-                items:
-                    type: string
-            offset:
-                type: integer
-            limit:
-                type: integer
-            count:
-                type: integer
-            items:
-                type: array
-                items:
-                    $ref: "#/definitions/PredictionDescriptor"
-            links:
-                type: array
-                items:
-                    $ref: "#/definitions/Reference"
     Reference:
         type: object
         required:
@@ -1116,11 +1221,4 @@ definitions:
             href:
                 type: string
     UpsertProperty:
-        type: object
-        required:
-            - key
-        properties:
-            key:
-                type: string
-            value:
-                type: string
+        $ref: "#/definitions/KeyValuePair"

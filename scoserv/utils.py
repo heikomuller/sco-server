@@ -1,7 +1,5 @@
 """Collection of helper methods."""
 
-import os
-
 
 def from_list(elements, label_key='key', label_value='value'):
     """Convert a list of key-value pairs into a dictionary. The value that is
