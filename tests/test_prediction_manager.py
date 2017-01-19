@@ -4,10 +4,9 @@ import shutil
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
+import scoserv.mongo as mongo
 import scoserv.db.attribute as attributes
 import scoserv.db.datastore as datastore
 import scoserv.db.prediction as predictions
@@ -17,7 +16,8 @@ class TestPredictionManagerMethods(unittest.TestCase):
     def setUp(self):
         """Connect to MongoDB and clear an existing modelruns collection.
         Create the model run manager"""
-        db = MongoClient().scotest
+        m = mongo.MongoDBFactory(db_name='scotest')
+        db = m.get_database()
         db.predictions.drop()
         self.mngr = predictions.DefaultModelRunManager(db.modelruns)
 

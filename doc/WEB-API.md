@@ -71,3 +71,14 @@ The following is a listing of references associated with different types of obje
 - delete: Delete object (HTTP DELETE)
 - download: Download data file (HTTP GET)
 - properties: Upsert object properties (HTTP POST)
+
+**Web API Service Description**
+
+- self
+- experiments.list
+- experiments.create
+- images.upload
+- images.files.list
+- images.groups.list
+- subjects.list
+- subjects.upload

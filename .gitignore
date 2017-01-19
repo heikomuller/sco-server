@@ -1,4 +1,5 @@
 *.pyc
 scoserv/venv/
+scoserv/sco/
 resources/
 tests/data/

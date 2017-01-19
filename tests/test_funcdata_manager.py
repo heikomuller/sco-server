@@ -4,10 +4,9 @@ import shutil
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
+import scoserv.mongo as mongo
 import scoserv.db.funcdata as funcdata
 
 FMRIS_DIR = '/tmp/sco/funcdata'
@@ -20,7 +19,8 @@ class TestFuncDataManagerMethods(unittest.TestCase):
         """Connect to MongoDB and clear an existing funcdata collection. Ensure
         that data directory exists and is empty. Create functional data
         manager."""
-        db = MongoClient().scotest
+        m = mongo.MongoDBFactory(db_name='scotest')
+        db = m.get_database()
         db.fmris.drop()
         if os.path.isdir(FMRIS_DIR):
             shutil.rmtree(FMRIS_DIR)

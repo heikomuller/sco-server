@@ -154,6 +154,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         properties = [
             datastore.PROPERTY_FILENAME,
             datastore.PROPERTY_FILETYPE,
+            datastore.PROPERTY_FILESIZE,
             datastore.PROPERTY_MIMETYPE
         ]
         # Initialize the super class
@@ -233,7 +234,7 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
         except (tarfile.ReadError, IOError) as err:
             # Clean up in case there is an error during extraction
             shutil.rmtree(temp_dir)
-            raise err
+            raise ValueError(str(err))
         # Find a folder that contains sub-folders 'surf' and 'mri'. These
         # are the only folders we keep in the new anatomy folder. Raise an
         # error if no such folder esists
@@ -258,10 +259,11 @@ class DefaultSubjectManager(datastore.DefaultObjectStore):
                 prop_name = prop_name[:-len(suffix)]
                 break
         properties = {
-            datastore.PROPERTY_FILENAME: prop_filename,
+            datastore.PROPERTY_FILENAME : prop_filename,
+            datastore.PROPERTY_FILESIZE : os.path.getsize(filename),
             datastore.PROPERTY_FILETYPE : FILE_TYPE_FREESURFER_DIRECTORY,
             datastore.PROPERTY_MIMETYPE : prop_mime,
-            datastore.PROPERTY_NAME: prop_name
+            datastore.PROPERTY_NAME : prop_name
         }
         # Create the directory for the anatomy object, the unpacked data files
         # and the original uploaded file (for download).

@@ -27,7 +27,7 @@ class JsonWebAPISerializer(object):
         # Initialize reference factory
         self.refs = hateoas.HATEOASReferenceFactory(base_url)
 
-    def experiment_to_json(self, experiment):
+    def experiment_to_json(self, experiment, subject, image_group, fmri=None):
         """Json serialization for experiment.
 
         Parameters
@@ -42,27 +42,12 @@ class JsonWebAPISerializer(object):
         # Get basic object serialization
         json_obj = self.object_to_json(experiment)
         # Add information about associated subject
-        json_obj['subject'] = {
-            'id' : experiment.subject,
-            'links' : hateoas.self_reference_set(
-                self.refs.subject_reference(experiment.subject)
-            )
-        }
+        json_obj['subject'] = self.subject_to_json(subject)
         # Add information about associated image group
-        json_obj['images'] = {
-            'id' : experiment.images,
-            'links' : hateoas.self_reference_set(
-                self.refs.image_group_reference(experiment.images)
-            )
-        }
+        json_obj['images'] = self.image_group_to_json(image_group)
         # Add information about associated fMRI data (if present)
-        if not experiment.fmri_data is None:
-            json_obj['fmri'] = {
-                'id' : experiment.fmri_data,
-                'links' : hateoas.self_reference_set(
-                    self.refs.experiments_fmri_reference(experiment.fmri_data)
-                )
-            }
+        if not fmri is None:
+            json_obj['fmri'] = self.experiment_fmri_to_json(fmri)
         # Return Json serialization
         return json_obj
 
@@ -172,7 +157,11 @@ class JsonWebAPISerializer(object):
         return self.listing_to_json(
             object_listing,
             properties,
-            self.refs.experiments_predictions_reference(experiment)
+            self.refs.experiments_predictions_reference(experiment),
+            links={
+                hateoas.REF_KEY_EXPERIMENT:
+                self.refs.experiment_reference(experiment)
+            }
         )
 
     def image_file_to_json(self, img):
@@ -246,7 +235,11 @@ class JsonWebAPISerializer(object):
             image_listing,
             items,
             None,
-            self.refs.image_group_images_list_reference(image_group_id)
+            self.refs.image_group_images_list_reference(image_group_id),
+            links={
+                hateoas.REF_KEY_IMAGE_GROUP :
+                self.refs.image_group_reference(image_group_id)
+            }
         )
 
     def image_group_to_json(self, img_grp):
@@ -303,7 +296,7 @@ class JsonWebAPISerializer(object):
             self.refs.image_groups_reference()
         )
 
-    def items_listing_to_json(self, object_listing, items, properties, listing_url):
+    def items_listing_to_json(self, object_listing, items, properties, listing_url, links=None):
         """Generic serializer for a list of items. Used for object listings and
         group image listings.
 
@@ -317,6 +310,9 @@ class JsonWebAPISerializer(object):
             List of property names or None.
         listing_url : string
             base Url for given object listing
+        links : Dictionary, optional
+            Optional dictionary of references to include in listings reference
+            list
 
         Returns
         -------
@@ -328,7 +324,7 @@ class JsonWebAPISerializer(object):
             object_listing,
             properties,
             listing_url
-        ).navigation_references()
+        ).navigation_references(links=links)
         # Return Json-like object contaiing items, references, and listing
         # arguments and statistics
         return {
@@ -340,7 +336,7 @@ class JsonWebAPISerializer(object):
             'links' : nav
         }
 
-    def listing_to_json(self, object_listing, properties, listing_url):
+    def listing_to_json(self, object_listing, properties, listing_url, links=None):
         """Create Json serialization for object listing. The property set
         defines additional properties to include with every object in the
         listing. If property set is None no additional properties will be
@@ -375,7 +371,7 @@ class JsonWebAPISerializer(object):
             if not properties is None:
                 for prop in properties:
                     if prop in obj.properties:
-                        item[prop] = obj.properties[attr]
+                        item[prop] = obj.properties[prop]
             # Add item to list
             items.append(item)
         # Call generic item listing decorator
@@ -383,7 +379,8 @@ class JsonWebAPISerializer(object):
             object_listing,
             items,
             properties,
-            listing_url
+            listing_url,
+            links=links
         )
 
     def object_to_json(self, obj):

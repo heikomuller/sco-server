@@ -139,6 +139,7 @@ class DefaultFunctionalDataManager(datastore.DefaultObjectStore):
         # data. The file type and mime type do not change either.
         properties = [
             datastore.PROPERTY_FILENAME,
+            datastore.PROPERTY_FILESIZE,
             datastore.PROPERTY_MIMETYPE
         ]
         # Initialize the super class
@@ -186,6 +187,7 @@ class DefaultFunctionalDataManager(datastore.DefaultObjectStore):
         properties = {
             datastore.PROPERTY_NAME: prop_name,
             datastore.PROPERTY_FILENAME : prop_name,
+            datastore.PROPERTY_FILESIZE : os.path.getsize(filename),
             datastore.PROPERTY_MIMETYPE : prop_mime
         }
         # Move original file to object directory

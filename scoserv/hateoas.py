@@ -39,18 +39,14 @@ QPARA_STATE = 'state'
 REF_KEY_DELETE = 'delete'
 # Download data file
 REF_KEY_DOWNLOAD = 'download'
+# Model run listing's reference to it's experiment
+REF_KEY_EXPERIMENT = 'experiment'
 # Get experiments fMRI data
 REF_KEY_FMRI_GET = 'fmri.get'
 # Update experiments fMRI data
 REF_KEY_FMRI_UPLOAD = 'fmri.upload'
-# Navigate to first page in object listing
-REF_KEY_PAGE_FIRST = 'first'
-# Navigate to last page in object listing
-REF_KEY_PAGE_LAST = 'last'
-# Navigate to next page in object listing
-REF_KEY_PAGE_NEXT = 'next'
-# Navigate to previous page in object listing
-REF_KEY_PAGE_PREVIOUS = 'prev'
+# Group image listing's reference to group object
+REF_KEY_IMAGE_GROUP = 'group'
 # List experiment predictions
 REF_KEY_PREDICTIONS_LIST = 'predictions.list'
 # Create new predictive model runs
@@ -61,6 +57,34 @@ REF_KEY_SELF = 'self'
 REF_KEY_UPDATE_OPTIONS = 'options'
 # Upsert object property
 REF_KEY_UPSERT_PROPERTY = 'properties'
+
+# Listing pagination navigators
+
+# Navigate to first page in object listing
+REF_KEY_PAGE_FIRST = 'first'
+# Navigate to last page in object listing
+REF_KEY_PAGE_LAST = 'last'
+# Navigate to next page in object listing
+REF_KEY_PAGE_NEXT = 'next'
+# Navigate to previous page in object listing
+REF_KEY_PAGE_PREVIOUS = 'prev'
+
+# Service description references
+
+# List experiments
+REF_KEY_SERVICE_EXPERIMENTS_LIST = 'experiments.list'
+# Create new experiment
+REF_KEY_SERVICE_EXPERIMENTS_CREATE = 'experiments.create'
+# Upload image file or image archive
+REF_KEY_SERVICE_IMAGES_UPLOAD = 'images.upload'
+# List image files
+REF_KEY_SERVICE_IMAGE_FILES_LIST = 'images.files.list'
+# List image groups
+REF_KEY_SERVICE_IMAGE_GROUPS_LIST = 'images.groups.list'
+# List subjects
+REF_KEY_SERVICE_SUBJECTS_LIST = 'subjects.list'
+# Create new subject via upload
+REF_KEY_SERVICE_SUBJECTS_UPLOAD = 'subjects.upload'
 
 # ------------------------------------------------------------------------------
 # Url components
@@ -140,8 +164,14 @@ class PaginationReferenceFactory(object):
             query += '&' + QPARA_PROPERTIES + '=' + self.properties
         return self.url + '?' + query
 
-    def navigation_references(self):
+    def navigation_references(self, links=None):
         """Set of navigation references for object listing.
+
+        Parameters
+        ----------
+        links : Dictionary, optional
+            Optional list of references to include in the listings references
+            list
 
         Returns
         -------
@@ -164,6 +194,10 @@ class PaginationReferenceFactory(object):
                 nav[REF_KEY_PAGE_PREVIOUS] = self.decorate_listing_url(self.offset - self.limit)
             else:
                 nav[REF_KEY_PAGE_PREVIOUS] = self.decorate_listing_url(0)
+        # Merge navigation references with optional likns disctionary if given
+        if not links is None:
+            for rel in links:
+                nav[rel] = links[rel]
         # Return list of references
         return to_references(nav)
 
@@ -400,7 +434,14 @@ class HATEOASReferenceFactory:
             List of reference objects, i.e., [{rel:..., href:...}].
         """
         return to_references({
-            REF_KEY_SELF : self.base_url
+            REF_KEY_SELF : self.base_url,
+            REF_KEY_SERVICE_EXPERIMENTS_LIST : self.experiments_reference(),
+            REF_KEY_SERVICE_EXPERIMENTS_CREATE : self.experiments_reference(),
+            REF_KEY_SERVICE_IMAGES_UPLOAD : self.base_url + '/' + URL_KEY_IMAGES,
+            REF_KEY_SERVICE_IMAGE_FILES_LIST : self.image_files_reference(),
+            REF_KEY_SERVICE_IMAGE_GROUPS_LIST : self.image_groups_reference(),
+            REF_KEY_SERVICE_SUBJECTS_LIST : self.subjects_reference(),
+            REF_KEY_SERVICE_SUBJECTS_UPLOAD : self.subjects_reference()
         })
 
     def subject_reference(self, subject_id):

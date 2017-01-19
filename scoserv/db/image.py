@@ -158,7 +158,7 @@ class GroupImage(object):
     name : string
         Image name (unique within the folder)
     """
-    def __init__(self, identifier, folder, name):
+    def __init__(self, identifier, folder, name, filename):
         """Initialize attributes of the group image.
 
         Parameters
@@ -169,10 +169,13 @@ class GroupImage(object):
             (Sub-)folder in the group (default: /)
         name : string
             Image name (unique within the folder)
+        filename : string
+            Absolute path to file on local disk
         """
         self.identifier = identifier
         self.folder = folder
         self.name = name
+        self.filename = filename
 
 
 # ------------------------------------------------------------------------------
@@ -211,7 +214,11 @@ class DefaultImageManager(datastore.DefaultObjectStore):
         super(DefaultImageManager, self).__init__(
             mongo_collection,
             base_directory,
-            [datastore.PROPERTY_FILENAME, datastore.PROPERTY_MIMETYPE]
+            [
+                datastore.PROPERTY_FILENAME,
+                datastore.PROPERTY_FILESIZE,
+                datastore.PROPERTY_MIMETYPE
+            ]
         )
 
     def create_object(self, filename):
@@ -252,6 +259,7 @@ class DefaultImageManager(datastore.DefaultObjectStore):
         properties = {
             datastore.PROPERTY_NAME: prop_name,
             datastore.PROPERTY_FILENAME : prop_name,
+            datastore.PROPERTY_FILESIZE : os.path.getsize(filename),
             datastore.PROPERTY_MIMETYPE : prop_mime
         }
         # Move original file to object directory
@@ -318,7 +326,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
     directory : string
         Base directory on local disk for image group files.
     """
-    def __init__(self, mongo_collection, base_directory):
+    def __init__(self, mongo_collection, base_directory, image_manager):
         """Initialize the MongoDB collection and base directory where to store
         images group files. Set immutable and mandatory properties.
 
@@ -329,13 +337,21 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         base_directory : string
             Base directory on local disk for image group files. Files are stored
             in sub-directories named by the subject identifier.
+        image_manager : DefaultImageManager
+            Manager for image files
         """
         # Initialize the super class
         super(DefaultImageGroupManager, self).__init__(
             mongo_collection,
             base_directory,
-            [datastore.PROPERTY_FILENAME, datastore.PROPERTY_MIMETYPE]
+            [
+                datastore.PROPERTY_FILENAME,
+                datastore.PROPERTY_FILESIZE,
+                datastore.PROPERTY_MIMETYPE
+            ]
         )
+        # Initialize image manager reference
+        self.image_manager = image_manager
         # Initialize the definition of image group options attributes
         self.options_def = {
             'stimulus_pixels_per_degree' : attribute.AttributeDefinition(
@@ -393,6 +409,7 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
         properties = {
             datastore.PROPERTY_NAME: name,
             datastore.PROPERTY_FILENAME : prop_filename,
+            datastore.PROPERTY_FILESIZE : os.path.getsize(filename),
             datastore.PROPERTY_MIMETYPE : prop_mime
         }
         # Directories are simply named by object identifier
@@ -442,7 +459,11 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
             images.append(GroupImage(
                 grp_image['identifier'],
                 grp_image['folder'],
-                grp_image['name']
+                grp_image['name'],
+                os.path.join(
+                    self.image_manager.get_directory(grp_image['identifier']),
+                    grp_image['name']
+                )
             ))
         # Directories are simply named by object identifier
         directory = os.path.join(self.directory, identifier)

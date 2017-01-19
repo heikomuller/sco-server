@@ -4,10 +4,9 @@ import shutil
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
+import scoserv.mongo as mongo
 import scoserv.db.attribute as attributes
 import scoserv.db.image as images
 
@@ -21,14 +20,15 @@ class TestImageManagerMethods(unittest.TestCase):
         """Connect to MongoDB and clear an existing images and image group
         collection. Ensure that data directory exists and is empty. Then create
         object managers."""
-        db = MongoClient().scotest
+        m = mongo.MongoDBFactory(db_name='scotest')
+        db = m.get_database()
         db.images.drop()
         db.imagegroups.drop()
         if os.path.isdir(IMAGES_DIR):
             shutil.rmtree(IMAGES_DIR)
         os.makedirs(IMAGES_DIR)
         self.mngr_images = images.DefaultImageManager(db.images, IMAGES_DIR)
-        self.mngr_groups = images.DefaultImageGroupManager(db.imagegroups, IMAGES_DIR)
+        self.mngr_groups = images.DefaultImageGroupManager(db.imagegroups, IMAGES_DIR, self.mngr_images)
 
     def test_images_create(self):
         """Test creation of images and image groups."""
@@ -69,7 +69,7 @@ class TestImageManagerMethods(unittest.TestCase):
         for img_id in img_list:
             img = self.mngr_images.get_object(img_id)
             self.assertTrue(os.path.isfile(img.image_file))
-            group.append(images.GroupImage(img_id, '/', img.name))
+            group.append(images.GroupImage(img_id, '/', img.name, ''))
         # Create image group for image objects
         tmp_file = os.path.join(IMAGES_DIR, IMAGES_ARCHIVE)
         shutil.copyfile(os.path.join(DATA_DIR, IMAGES_ARCHIVE), tmp_file)
@@ -106,7 +106,7 @@ class TestImageManagerMethods(unittest.TestCase):
         """Test functionality of updating attributes associated with an image
         group."""
         # Create image group with fake image
-        group = [images.GroupImage('1', '/', 'NAME')]
+        group = [images.GroupImage('1', '/', 'NAME', '')]
         tmp_file = os.path.join(IMAGES_DIR, IMAGES_ARCHIVE)
         shutil.copyfile(os.path.join(DATA_DIR, IMAGES_ARCHIVE), tmp_file)
         img_group = self.mngr_groups.create_object(

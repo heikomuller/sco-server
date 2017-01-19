@@ -1,0 +1,1 @@
+- Prevent deleting an image if it is still part of an image group

@@ -5,11 +5,14 @@ import tempfile
 
 from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
-from pymongo import MongoClient
 from werkzeug.utils import secure_filename
 
 import db.api
+import db.attribute as attribute
+import db.datastore as datastore
+import engine as wf
 import hateoas
+import mongo
 import serialize
 
 
@@ -27,11 +30,11 @@ BASE_URL = SERVER_URL + ':' + str(SERVER_PORT) + APP_PATH + '/'
 # Flag to switch debugging on/off
 DEBUG = True
 # Local folder for data files
-DATA_DIR = '../resources/data'
+DATA_DIR = os.path.abspath('../resources/data')
+# Local folder for SCO subject files
+ENV_DIR = os.path.abspath('../resources/env/subjects')
 # Log file
 LOG_FILE = os.path.abspath(DATA_DIR + 'scoserv.log')
-# MongoDB database
-MONGO_DB = MongoClient().scoserv
 
 
 # ------------------------------------------------------------------------------
@@ -45,7 +48,9 @@ app.config['DEBUG'] = DEBUG
 CORS(app)
 
 # Instantiate the Standard Cortical Observer Data Store.
-db = db.api.SCODataStore(MONGO_DB, DATA_DIR)
+db = db.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
+# Instantiate the SCO weorklow engine
+engine = wf.SCOEngine(mongo.MongoDBFactory(), DATA_DIR, ENV_DIR)
 # Serializer for resources. Serializer follows REST architecture constraint to
 # include hypermedia links with responses.
 serializer = serialize.JsonWebAPISerializer(BASE_URL)
@@ -106,8 +111,22 @@ def experiments_get(experiment_id):
         # Raise exception if experiment does not exist.
         raise ResourceNotFound(experiment_id)
     else:
+        # Retrieve associated subject, image_group, and fMRI data (if present)
+        # TODO: Handle cases where either of the objects has been deleted
+        subject = db.subjects_get(experiment.subject)
+        image_group = db.image_groups_get(experiment.images)
+        fmri = None
+        if not experiment.fmri_data is None:
+            fmri = db.experiments_fmri_get(experiment.identifier)
         # Return Json serialization of object.
-        return jsonify(serializer.experiment_to_json(experiment))
+        return jsonify(
+            serializer.experiment_to_json(
+                experiment,
+                subject,
+                image_group,
+                fmri=fmri
+            )
+        )
 
 
 @app.route('/experiments', methods=['POST'])
@@ -123,11 +142,14 @@ def experiments_create():
         if not key in json_obj:
             raise InvalidRequest('missing element in Json body: ' + key)
     # Call API method to create a new experiment object
-    experiment = api.experiments_create(
-        json_obj['name'],
-        datastore.ObjectId(json_obj['subject']),
-        datastore.ObjectId(json_obj['images'])
-    )
+    try:
+        experiment = db.experiments_create(
+            json_obj['name'],
+            json_obj['subject'],
+            json_obj['images']
+        )
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
     # Return result including list of references for new experiment
     return jsonify(serializer.response_success(experiment)), 201
 
@@ -308,16 +330,18 @@ def experiments_predictions_create(experiment_id):
         if not key in json_obj:
             raise InvalidRequest('missing element in Json body: ' + key)
     # Call create method of API to get a new model run object handle.
-    prediction = db.experiments_predictions_create(
+    model_run = db.experiments_predictions_create(
         experiment_id,
         json_obj['name'],
         get_attributes(json_obj['arguments'])
     )
     # The result is None if experiment does not exists
-    if prediction is None:
+    if model_run is None:
         raise ResourceNotFound(experiment_id)
+    # Start the model run
+    engine.run_model(model_run)
     # Return result including list of references for new model run.
-    return jsonify(serializer.response_success(prediction)), 201
+    return jsonify(serializer.response_success(model_run)), 201
 
 
 @app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>', methods=['DELETE'])
@@ -552,7 +576,10 @@ def image_groups_update_options(image_group_id):
     attributes = get_attributes(json_obj['options'])
     # Upsert object options. The result will be None if image group does not
     # exist.
-    img_grp = db.image_groups_update_options(image_group_id, attributes)
+    try:
+        img_grp = db.image_groups_update_options(image_group_id, attributes)
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
     if img_grp is None:
         raise ResourceNotFound(image_group_id)
     return '', 200
@@ -585,13 +612,15 @@ def images_create():
     """Upload Images (POST) - Upload an image file or an archive of images."""
     # Upload the file to get handle. Type will depend on suffix of uploaded
     # file. A value error will be raised if file is invalid.
+    tmp_dir, upload_file = get_upload_file(request)
     try:
-        tmp_dir, upload_file = get_upload_file(request)
         img_handle =  db.images_create(upload_file)
-        shutil.rmtree(tmp_dir)
     except ValueError as err:
+        # Make sure to delete temporary file before raising InvalidRequest
+        shutil.rmtree(tmp_dir)
         raise InvalidRequest(str(err))
-    # Return result including list of references for the new database object.
+    # Clean up and return success.
+    shutil.rmtree(tmp_dir)
     return jsonify(serializer.response_success(img_handle)), 201
 
 
@@ -637,9 +666,14 @@ def subjects_create():
     # Upload the given file to get an object handle for new subject. Method
     # throws InvalidRequest exception if necessary.
     tmp_dir, upload_file = get_upload_file(request)
-    subject =  db.subjects_create(upload_file)
+    try:
+        subject =  db.subjects_create(upload_file)
+    except ValueError as ex:
+        # Make sure to clean up and raise InvalidRequest exception
+        shutil.rmtree(tmp_dir)
+        raise InvalidRequest(str(ex))
+    # Delete temp folder and return success.
     shutil.rmtree(tmp_dir)
-    # Return result including a list of references to new subject in database.
     return jsonify(serializer.response_success(subject)), 201
 
 
@@ -798,7 +832,7 @@ def get_attributes(json_array):
                 raise exceptions.InvalidRequest('object has not key ' + key)
         name = str(element['name'])
         value = element['value']
-        result.append(datastore.Attribute(name, value))
+        result.append(attribute.Attribute(name, value))
     return result
 
 
@@ -884,7 +918,7 @@ def get_upsert_property(request):
         raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     if not 'key' in json_obj:
-        raise InvalidRequest('missing element in Json body: key')
+        raise InvalidRequest('missing element in Json body: ' + key)
     # Get key and new value (if given) of property to update
     key = json_obj['key']
     value = json_obj['value'] if 'value' in json_obj else None
@@ -912,9 +946,7 @@ def get_upsert_response(state, object_id, key, value):
         Http response code
     """
     if state == datastore.OP_ILLEGAL:
-        raise InvalidRequest(
-            'illegal upsert: ' + object_id + '.' + str(key) + '=' + str(value)
-        )
+        raise InvalidRequest('illegal upsert for property: ' + str(key))
     elif state == datastore.OP_CREATED:
         return 201
     elif state == datastore.OP_DELETED:

@@ -5,10 +5,9 @@ import shutil
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
+import scoserv.mongo as mongo
 import scoserv.db.subject as subjects
 
 SUBJECT_DIR = '/tmp/sco/subjects'
@@ -20,7 +19,8 @@ class TestSubjectManagerMethods(unittest.TestCase):
     def setUp(self):
         """Connect to MongoDB and clear an existing subjects collection. Ensure
         that data directory exists and is empty. Then create subject manager."""
-        db = MongoClient().scotest
+        m = mongo.MongoDBFactory(db_name='scotest')
+        db = m.get_database()
         db.subjects.drop()
         if os.path.isdir(SUBJECT_DIR):
             shutil.rmtree(SUBJECT_DIR)

@@ -2,8 +2,6 @@ import os
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
 import scoserv.hateoas as hateoas
@@ -38,7 +36,25 @@ class TestJsonSerializer(unittest.TestCase):
             'SUBJECT_ID',
             'IMAGES_ID'
         )
-        json = self.serializer.experiment_to_json(e)
+        s = subject.SubjectHandle(
+            OBJECT_ID,
+            {
+                ds.PROPERTY_NAME: OBJECT_NAME,
+                ds.PROPERTY_FILETYPE: subject.FILE_TYPE_FREESURFER_DIRECTORY,
+            },
+            OBJECT_DIR
+        )
+        ig = image.ImageGroupHandle(
+            OBJECT_ID,
+            {ds.PROPERTY_NAME: OBJECT_NAME},
+            OBJECT_DIR,
+            [
+                image.GroupImage('id1', 'name1', '/', ''),
+                image.GroupImage('id2', 'name2', '/', '')
+            ],
+            {'stimulus_pixels_per_degree': attr.Attribute('stimulus_pixels_per_degree', 0.88)}
+        )
+        json = self.serializer.experiment_to_json(e, s, ig)
         # Ensure all basic elements are present
         self.assertTrue('id' in json)
         self.assertTrue('timestamp' in json)
@@ -58,13 +74,13 @@ class TestJsonSerializer(unittest.TestCase):
         # Ensure subject is represented properly
         self.assertTrue('id' in json['subject'])
         self.assertTrue('links' in json['subject'])
-        self.assertEqual(len(json['subject']), 2)
+        self.assertEqual(len(json['subject']), 5)
         links = utils.from_list(json['subject']['links'], label_key=hateoas.LIST_KEY, label_value=hateoas.LIST_VALUE)
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         # Ensure image group is represented properly
         self.assertTrue('id' in json['images'])
         self.assertTrue('links' in json['images'])
-        self.assertEqual(len(json['images']), 2)
+        self.assertEqual(len(json['images']), 7)
         links = utils.from_list(json['images']['links'], label_key=hateoas.LIST_KEY, label_value=hateoas.LIST_VALUE)
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         # Make sure links are present and correct
@@ -88,7 +104,33 @@ class TestJsonSerializer(unittest.TestCase):
             'IMAGES_ID',
             fmri_data='FMRI_ID'
         )
-        json = self.serializer.experiment_to_json(e)
+        s = subject.SubjectHandle(
+            OBJECT_ID,
+            {
+                ds.PROPERTY_NAME: OBJECT_NAME,
+                ds.PROPERTY_FILETYPE: subject.FILE_TYPE_FREESURFER_DIRECTORY,
+            },
+            OBJECT_DIR
+        )
+        ig = image.ImageGroupHandle(
+            OBJECT_ID,
+            {ds.PROPERTY_NAME: OBJECT_NAME},
+            OBJECT_DIR,
+            [
+                image.GroupImage('id1', 'name1', '/', ''),
+                image.GroupImage('id2', 'name2', '/', '')
+            ],
+            {'stimulus_pixels_per_degree': attr.Attribute('stimulus_pixels_per_degree', 0.88)}
+        )
+        fmri = funcdata.FMRIDataHandle(
+            funcdata.FunctionalDataHandle(
+                OBJECT_ID,
+                {ds.PROPERTY_NAME: OBJECT_NAME},
+                OBJECT_DIR
+            ),
+            'EXPERIMENT_ID'
+        )
+        json = self.serializer.experiment_to_json(e, s, ig, fmri=fmri)
         # Ensure all basic elements are present
         self.assertTrue('id' in json)
         self.assertTrue('timestamp' in json)
@@ -102,7 +144,7 @@ class TestJsonSerializer(unittest.TestCase):
         # Ensure fMRI object is represented properly
         self.assertTrue('id' in json['fmri'])
         self.assertTrue('links' in json['fmri'])
-        self.assertEqual(len(json['fmri']), 2)
+        self.assertEqual(len(json['fmri']), 6)
         links = utils.from_list(json['fmri']['links'], label_key=hateoas.LIST_KEY, label_value=hateoas.LIST_VALUE)
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         # Make sure links are present and correct
@@ -278,12 +320,14 @@ class TestJsonSerializer(unittest.TestCase):
             image.GroupImage(
                 OBJECT_ID,
                 OBJECT_NAME,
-                OBJECT_DIR
+                OBJECT_DIR,
+                ''
             ),
             image.GroupImage(
                 OBJECT_ID,
                 OBJECT_NAME,
-                OBJECT_DIR
+                OBJECT_DIR,
+                ''
             )
         ]
         object_listing = ds.ObjectListing(items, 7, 2, 8)
@@ -304,7 +348,8 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_PAGE_FIRST in links)
         self.assertTrue(hateoas.REF_KEY_PAGE_PREVIOUS in links)
         self.assertTrue(hateoas.REF_KEY_PAGE_LAST in links)
-        self.assertEqual(len(links), 4)
+        self.assertTrue(hateoas.REF_KEY_IMAGE_GROUP in links)
+        self.assertEqual(len(links), 5)
 
     def test_image_file_serialization(self):
         """Test serialization of image file objects."""
@@ -345,8 +390,8 @@ class TestJsonSerializer(unittest.TestCase):
             {ds.PROPERTY_NAME: OBJECT_NAME},
             OBJECT_DIR,
             [
-                image.GroupImage('id1', 'name1', '/'),
-                image.GroupImage('id2', 'name2', '/')
+                image.GroupImage('id1', 'name1', '/', ''),
+                image.GroupImage('id2', 'name2', '/', '')
             ],
             {'stimulus_pixels_per_degree': attr.Attribute('stimulus_pixels_per_degree', 0.88)}
         )

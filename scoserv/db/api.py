@@ -72,20 +72,20 @@ class SCODataStore(object):
     """Interface to data stores for individual objects. Implements API calls
     for the Web API.
     """
-    def __init__(self, mongo_database, base_dir):
+    def __init__(self, mongo, base_dir):
         """Initialize the SCO data store by creating instances of data stores
         for individual data types.
 
         Parameters
         ----------
-        mongo_database : MondoDB database
-            MongoDB database to store object instance information.
+        mongo : mongo.MongoDBFactory()
+            MongoDB database object factory
         base_dir : string
             The directory for storing data files. Directory will be created
             if it does not exist. For different types of objects various
             sub-directories will also be created if they don't exist.
         """
-        db = mongo_database
+        db = mongo.get_database()
         # Ensure that varios data (sub-)folders exist
         abs_base_dir = create_dir(base_dir)
         funcdata_dir = create_dir(os.path.join(abs_base_dir, 'funcdata'))
@@ -98,7 +98,7 @@ class SCODataStore(object):
         self.experiments = experiment.DefaultExperimentManager(db.experiments)
         self.funcdata = funcdata.DefaultFunctionalDataManager(db.funcdata, funcdata_dir)
         self.images = image.DefaultImageManager(db.images, image_files_dir)
-        self.image_groups = image.DefaultImageGroupManager(db.imagegroups, image_groups_dir)
+        self.image_groups = image.DefaultImageGroupManager(db.imagegroups, image_groups_dir, self.images)
         self.predictions = prediction.DefaultModelRunManager(db.predictions)
         self.subjects = subject.DefaultSubjectManager(db.subjects, subjects_dir)
 
@@ -166,7 +166,7 @@ class SCODataStore(object):
 
         Returns
         -------
-        FunctionalDataHandle
+        FMRIDataHandle
             Handle for created fMRI object or None if identified experiment
             is unknown
         """
@@ -188,7 +188,7 @@ class SCODataStore(object):
             self.funcdata.delete_object(fmri.identifier, erase=True)
             return None
         else:
-            return fmri
+            return funcdata.FMRIDataHandle(fmri, identifier)
 
     def experiments_fmri_delete(self, identifier):
         """Delete fMRI data object associated with given experiment.
@@ -200,7 +200,7 @@ class SCODataStore(object):
 
         Returns
         -------
-        FunctionalDataHandle
+        FMRIDataHandle
             Handle for deleted data object or None if experiment is unknown or
             has no fMRI data object associated with it
         """
@@ -214,7 +214,7 @@ class SCODataStore(object):
         fmri = self.funcdata.delete_object(fmri.identifier)
         if not fmri is None:
             self.experiments.update_fmri_data(identifier, None)
-        return fmri
+        return funcdata.FMRIDataHandle(fmri, identifier)
 
     def experiments_fmri_download(self, identifier):
         """Download the fMRI data file associated with given experiment.
@@ -265,7 +265,7 @@ class SCODataStore(object):
         # Get functional data object handle from database.
         func_data = self.funcdata.get_object(experiment.fmri_data)
         # Create fMRI handle from functional data handle
-        return funcdata.FMRIDataHandle(func_data, experiment)
+        return funcdata.FMRIDataHandle(func_data, identifier)
 
     def experiments_fmri_upsert_property(self, identifier, key, value=None):
         """Upsert property of fMRI data object associated with given experiment.
@@ -368,7 +368,7 @@ class SCODataStore(object):
             return None
         # Return resutl of deleting model run. Could also raise exception in
         # case of invalid database state (i.e., prediction does not exist)
-        return self.predictions.delete_object(predition)
+        return self.predictions.delete_object(model_run.identifier)
 
     def experiments_predictions_download(self, experiment, prediction):
         """Donwload the results of a prediction for a given experiment.
@@ -542,6 +542,8 @@ class SCODataStore(object):
         given file. An ValueError exception is thrown if the file has an unknown
         suffix.
 
+        Raises ValueError if invalid file is given.
+
         Parameters
         ----------
         filename : File-type object
@@ -571,7 +573,7 @@ class SCODataStore(object):
             except (tarfile.ReadError, IOError) as err:
                 # Clean up in case there is an error during extraction
                 shutil.rmtree(temp_dir)
-                raise err
+                raise ValueError(str(err))
             # Get names of all files with valid image suffixes and create an
             # object for each image object
             group = []
@@ -581,7 +583,8 @@ class SCODataStore(object):
                 group.append(image.GroupImage(
                     img_obj.identifier,
                     folder,
-                    img_obj.name
+                    img_obj.name,
+                    img_obj.image_file
                 ))
             # Create image group
             name = os.path.basename(os.path.normpath(filename))[:-len(suffix)]
@@ -591,7 +594,7 @@ class SCODataStore(object):
             return img_grp
         else:
             # Not a valid file suffix
-            raise ValueError('invalid file suffix: ' + filename)
+            raise ValueError('invalid file suffix: ' + os.path.basename(os.path.normpath(filename)))
 
     def image_files_delete(self, identifier):
         """Delete image object with given identifier. At the moment, this has no
@@ -788,7 +791,8 @@ class SCODataStore(object):
 
     def image_groups_update_options(self, identifier, options):
         """Update set of typed options associated with a given image group.
-        Raises an exception if invalid options are provided.
+
+        Raises ValueError if invalid options are provided.
 
         Parameters
         ----------
@@ -832,6 +836,8 @@ class SCODataStore(object):
         """Create subject from given data files. Expects the file to be a
         Freesurfer archive.
 
+        Raises ValueError if given file is not a valid subject file.
+
         Parameters
         ----------
         filename : File-type object
@@ -842,6 +848,11 @@ class SCODataStore(object):
         SubjectHandle
             Handle for created subject in database
         """
+        # Ensure that the file name has a valid archive suffix
+        if get_filename_suffix(filename, ARCHIVE_SUFFIXES) is None:
+            raise ValueError('invalid file suffix: ' + os.path.basename(os.path.normpath(filename)))
+        # Create subject from archive. Raises exception if file is not a valid
+        # subject archive
         return self.subjects.upload_file(filename)
 
     def subjects_delete(self, identifier):

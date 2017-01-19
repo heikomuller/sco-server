@@ -5,10 +5,9 @@ import shutil
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
+import scoserv.mongo as mongo
 import scoserv.db.api as api
 import scoserv.db.attribute as attributes
 import scoserv.db.datastore as datastore
@@ -27,7 +26,8 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
     def setUp(self):
         """Connect to MongoDB and clear any existing collections. Ensure
         that data directory exists and is empty. Then create API."""
-        db = MongoClient().scotest
+        m = mongo.MongoDBFactory(db_name='scotest')
+        db = m.get_database()
         db.experiments.drop()
         db.funcdata.drop()
         db.images.drop()
@@ -37,7 +37,7 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         if os.path.isdir(API_DIR):
             shutil.rmtree(API_DIR)
         os.makedirs(API_DIR)
-        self.api = api.SCODataStore(db, API_DIR)
+        self.api = api.SCODataStore(m, API_DIR)
 
     def test_experiment_api(self):
         # Create subject and image group

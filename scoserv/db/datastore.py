@@ -23,6 +23,8 @@ with a database object."""
 
 # Name of the original archive file
 PROPERTY_FILENAME = 'filename'
+# Size of file in bytes.
+PROPERTY_FILESIZE = 'filesize'
 # String representation of file type.
 PROPERTY_FILETYPE = 'filetype'
 # Default Mime-type of the image (based on the file name suffix)

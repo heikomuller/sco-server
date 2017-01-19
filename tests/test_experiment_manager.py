@@ -4,10 +4,9 @@ import shutil
 import sys
 import unittest
 
-from pymongo import MongoClient
-
 sys.path.insert(0, os.path.abspath('..'))
 
+import scoserv.mongo as mongo
 import scoserv.db.experiment as experiments
 
 class TestExperimentManagerMethods(unittest.TestCase):
@@ -15,7 +14,8 @@ class TestExperimentManagerMethods(unittest.TestCase):
     def setUp(self):
         """Connect to MongoDB and clear an existing experiment collection.
         Create experiment manager"""
-        db = MongoClient().scotest
+        m = mongo.MongoDBFactory(db_name='scotest')
+        db = m.get_database()
         db.experiments.drop()
         self.mngr = experiments.DefaultExperimentManager(db.experiments)
 

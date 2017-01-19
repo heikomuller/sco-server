@@ -3,6 +3,9 @@ previously associated with the experiment will no longer be referenced from
 any object (potentially -> Can multiple experiments reference the same fMRI
 object?).
 
-What happens to experiemnts etc if a subject is deleted?
+What happens to experiments etc if a subject is deleted?
 
 Can a model run be deleted while running or only after completion/failure?
+
+Are there mandatory options/arguments for model runs that don't have default
+values defined?

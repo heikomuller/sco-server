@@ -356,8 +356,9 @@ def attributes_from_json(document):
     """
     attributes = dict()
     for attr in document:
-        attributes[attr['name']] = Attribute(
-            attr['name'],
+        name = str(attr['name'])
+        attributes[name] = Attribute(
+            name,
             attr['value']
         )
     return attributes

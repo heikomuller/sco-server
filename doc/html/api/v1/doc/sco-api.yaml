@@ -1014,40 +1014,13 @@ definitions:
             - properties:
                 subject:
                     type: object
-                    required:
-                        - id
-                        - links
-                    properties:
-                        id:
-                            type: string
-                        links:
-                            type: array
-                            items:
-                                $ref: "#/definitions/Reference"
+                    $ref: "#/definitions/ObjectHandle"
                 images:
                     type: object
-                    required:
-                        - id
-                        - links
-                    properties:
-                        id:
-                            type: string
-                        links:
-                            type: array
-                            items:
-                                $ref: "#/definitions/Reference"
+                    $ref: "#/definitions/ImageGroupHandle"
                 fmri:
                     type: object
-                    required:
-                        - id
-                        - links
-                    properties:
-                        id:
-                            type: string
-                        links:
-                            type: array
-                            items:
-                                $ref: "#/definitions/Reference"
+                    $ref: "#/definitions/FMRIHandle"
     FMRIHandle:
         allOf:
             - $ref: "#/definitions/ObjectHandle"
