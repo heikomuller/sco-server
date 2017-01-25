@@ -138,15 +138,15 @@ def experiments_create():
         raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     # Make sure that all required keys are present in the given Json object
-    for key in ['name', 'subject', 'images']:
+    for key in ['subject', 'images', 'properties']:
         if not key in json_obj:
             raise InvalidRequest('missing element in Json body: ' + key)
     # Call API method to create a new experiment object
     try:
         experiment = db.experiments_create(
-            json_obj['name'],
             json_obj['subject'],
-            json_obj['images']
+            json_obj['images'],
+            get_properties_list(json_obj['properties'], True)
         )
     except ValueError as ex:
         raise InvalidRequest(str(ex))
@@ -172,17 +172,17 @@ def experiments_upsert_property(experiment_id):
     """Upsert experiment property (POST) - Upsert a property of an experiment
     object in the database.
     """
-    # Extract key,value-pair for upsert property from request.
-    key, value = get_upsert_property(request)
-    # Upsert the object property. The response code indicates whether the
-    # property was created, updated, or deleted. Method raises InvalidRequest
-    # or ResourceNotFound exceptions if necessary.
-    return '', get_upsert_response(
-        db.experiments_upsert_property(experiment_id, key, value=value),
-        experiment_id,
-        key,
-        value
-    )
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert experiment properties. The response indicates if the experiment
+    # exists. Will throw ValueError if property set results in illegal update.
+    try:
+        if db.experiments_upsert_property(experiment_id, properties) is None:
+            raise ResourceNotFound(experiment_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -263,17 +263,17 @@ def experiments_fmri_upsert_property(experiment_id):
     """Upsert functional MRI data object (POST) - Upsert a property of a
     functional MRI data object in the database.
     """
-    # Extract key,value-pair for upsert property from request.
-    key, value = get_upsert_property(request)
-    # Upsert the object property. The response code indicates whether the
-    # property was created, updated, or deleted. Method raises InvalidRequest
-    # or ResourceNotFound exceptions if necessary.
-    return '', get_upsert_response(
-        db.experiments_fmri_upsert_property(experiment_id, key, value=value),
-        experiment_id + ':fmri',
-        key,
-        value
-    )
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert fMRI data object's properties. The response indicates if the object
+    # exists. Will throw ValueError if property set results in illegal update.
+    try:
+        if db.experiments_fmri_upsert_property(experiment_id, properties) is None:
+            raise ResourceNotFound(experiment_id + ':fmri')
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -381,21 +381,21 @@ def experiments_predictions_upsert_property(experiment_id, prediction_id):
     """Upsert prediction (POST) - Upsert a property of a model run object
     associated with a given experiment.
     """
-    # Extract key,value-pair for upsert property from request.
-    key, value = get_upsert_property(request)
-    # Upsert the object property. The response code indicates whether the
-    # property was created, updated, or deleted. Method raises InvalidRequest
-    # or ResourceNotFound exceptions if necessary.
-    return '', get_upsert_response(
-        db.experiments_predictions_upsert_property(
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert model run properties. The response indicates if the model run
+    # exists. Will throw ValueError if property set results in illegal update.
+    try:
+        result = db.experiments_predictions_upsert_property(
             experiment_id,
             prediction_id,
-            key,
-            value=value),
-        prediction_id,
-        key,
-        value
-    )
+            properties)
+        if result is None:
+            raise ResourceNotFound(prediction_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -465,17 +465,17 @@ def image_files_upsert_property(image_id):
     """Upsert image object (POST) - Upsert a property of an image object in the
     database.
     """
-    # Extract key,value-pair for upsert property from request.
-    key, value = get_upsert_property(request)
-    # Upsert the object property. The response code indicates whether the
-    # property was created, updated, or deleted. Method raises InvalidRequest
-    # or ResourceNotFound exceptions if necessary.
-    return '', get_upsert_response(
-        db.image_files_upsert_property(image_id, key, value=value),
-        image_id,
-        key,
-        value
-    )
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert image file properties. The response indicates if the image exists.
+    # Will throw ValueError if property set results in illegal update.
+    try:
+        if db.image_files_upsert_property(image_id, properties) is None:
+            raise ResourceNotFound(image_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -590,17 +590,17 @@ def image_groups_upsert_property(image_group_id):
     """Upsert image object (POST) - Upsert a property of an image group in the
     database.
     """
-    # Extract key,value-pair for upsert property from request.
-    key, value = get_upsert_property(request)
-    # Upsert the object property. The response code indicates whether the
-    # property was created, updated, or deleted. Method raises InvalidRequest
-    # or ResourceNotFound exceptions if necessary.
-    return '', get_upsert_response(
-        db.image_groups_upsert_property(image_group_id, key, value=value),
-        image_group_id,
-        key,
-        value
-    )
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert image group properties. The response indicates if the image group
+    # exists. Will throw ValueError if property set results in illegal update.
+    try:
+        if db.image_groups_upsert_property(image_group_id, properties) is None:
+            raise ResourceNotFound(image_group_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -716,17 +716,17 @@ def subjects_upsert_property(subject_id):
     """Upsert subject object (POST) - Upsert a property of a brain anatomy MRI
     object in the database.
     """
-    # Extract key,value-pair for upsert property from request.
-    key, value = get_upsert_property(request)
-    # Upsert the object property. The response code indicates whether the
-    # property was created, updated, or deleted. Method raises InvalidRequest
-    # or ResourceNotFound exceptions if necessary.
-    return '', get_upsert_response(
-        db.subjects_upsert_property(subject_id, key, value=value),
-        subject_id,
-        key,
-        value
-    )
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert subject properties. The response indicates if the subject exists.
+    # Will throw ValueError if property set results in illegal update.
+    try:
+        if db.subjects_upsert_property(subject_id, properties) is None:
+            raise ResourceNotFound(subject_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -821,15 +821,15 @@ def get_attributes(json_array):
     result = []
     # Make sure the given array is a list
     if not isinstance(json_array, list):
-        raise exceptions.InvalidRequest('argument is not a list')
+        raise InvalidRequest('argument is not a list')
     # Iterate over all elements in the list. Make sure they are Json objects
     # with 'name' and 'value' elements
     for element in json_array:
         if not isinstance(element, dict):
-            raise exceptions.InvalidRequest('element is not a dictionary')
+            raise InvalidRequest('element is not a dictionary')
         for key in ['name', 'value']:
             if not key in element:
-                raise exceptions.InvalidRequest('object has not key ' + key)
+                raise InvalidRequest('object has not key ' + key)
         name = str(element['name'])
         value = element['value']
         result.append(attribute.Attribute(name, value))
@@ -865,6 +865,35 @@ def get_listing_arguments(request, default_limit=DEFAULT_LISTING_SIZE):
     return offset, limit, prop_set
 
 
+def get_properties_list(json_array, is_mandatory_value):
+    """Convert an Json Array of key,value pairs into a dictionary.
+
+    Parameters
+    ----------
+    List(Json object) : Array of Json objects
+        List of Key,value-pairs
+    is_mandatory_value : Boolean
+        Flag indicating whether the 'value' element is mandatory for elements
+        in the list
+
+    Returns
+    -------
+    Dictionary
+    """
+    properties = {}
+    for item in json_array:
+        # Ensure that the Json object has all required elements
+        if not 'key' in item:
+            raise InvalidRequest('missing element: key')
+        if is_mandatory_value and not 'value' in item:
+            raise InvalidRequest('missing element: value')
+        # Get key and new value (if given) of property to update
+        key = item['key']
+        value = item['value'] if 'value' in item else None
+        properties[key] = value
+    return properties
+
+
 def get_upload_file(request):
     """Generalized method for file uploads. Ensures that request contains a
     file and returns the file. Raise InvalidRequest exception if request does
@@ -898,9 +927,9 @@ def get_upload_file(request):
     return temp_dir, upload_file
 
 
-def get_upsert_property(request):
-    """Extract key,value-pair defining the property and it's new value that are
-    to be updated.
+def get_upsert_properties(request):
+    """Extract dictionary of key,value-pairs defining the set of property
+    upserts for an API resource.
 
     Parameters
     ----------
@@ -909,54 +938,16 @@ def get_upsert_property(request):
 
     Returns
     -------
-    (string, string) : (key, value)
-        Key,value-pair describing property update
+    Dictinary
+        Dictionary of Key,value-pairs describing property updates
     """
     # Abort with 400 if the request is not a Json request or if the Json object
     # in the request does not have field key. Field value is optional.
     if not request.json:
         raise InvalidRequest('not a valid Json object in request body')
-    json_obj = request.json
-    if not 'key' in json_obj:
-        raise InvalidRequest('missing element in Json body: ' + key)
-    # Get key and new value (if given) of property to update
-    key = json_obj['key']
-    value = json_obj['value'] if 'value' in json_obj else None
-    return key, value
-
-
-def get_upsert_response(state, object_id, key, value):
-    """Get request response code for property upsert operation status code.
-    Method raises an exception if the given state singals that the upsert has
-    not been successful.
-
-    Parameters
-    ----------
-    state : int
-        Property upsert result
-    object_id : string
-        Unique object identifier
-    key : string
-        Updated property
-    value : string
-        New property value
-
-    Returns
-    -------
-        Http response code
-    """
-    if state == datastore.OP_ILLEGAL:
-        raise InvalidRequest('illegal upsert for property: ' + str(key))
-    elif state == datastore.OP_CREATED:
-        return 201
-    elif state == datastore.OP_DELETED:
-        return 204
-    elif state == datastore.OP_UPDATED:
-        return 200
-    else: # -1
-        # This point should never be reached, unless object has been deleted
-        # concurrently.
-        raise ResourceNotFound(object_id)
+    if not 'properties' in request.json:
+        raise InvalidRequest('missing element: properties')
+    return get_properties_list(request.json['properties'], False)
 
 
 # ------------------------------------------------------------------------------

@@ -16,16 +16,18 @@ from scoserv.engine import run_sco
 
 
 API_DIR = '/tmp/sco'
-IMAGES_ARCHIVE = './data/images/images.tar.gz'
-SUBJECT_PATH = '/home/heiko/projects/sco/sco-server/resources/env/subjects'
-SUBJECT_FILE = './data/subjects/ernie.tar.gz'
-FAIL_SUBJECT_FILE = './data/subjects/subject.tar.gz'
+DATA_DIR = './data'
+
 
 class TestSCOEngine(unittest.TestCase):
 
     def setUp(self):
         """Connect to MongoDB and clear any existing collections. Ensure
         that data directory exists and is empty. Then create API."""
+        self.SUBJECT_PATH = os.path.join(DATA_DIR, 'env/subjects')
+        self.IMAGES_ARCHIVE = os.path.join(DATA_DIR, 'images/images.tar.gz')
+        self.SUBJECT_FILE = os.path.join(DATA_DIR, 'subjects/ernie.tar.gz')
+        self.FAIL_SUBJECT_FILE = os.path.join(DATA_DIR, 'subjects/subject.tar.gz')
         self.mongo = mongo.MongoDBFactory(db_name='scotest')
         db = self.mongo.get_database()
         db.experiments.drop()
@@ -38,15 +40,15 @@ class TestSCOEngine(unittest.TestCase):
             shutil.rmtree(API_DIR)
         os.makedirs(API_DIR)
         # Add Freesurfer subject path
-        add_subject_path(SUBJECT_PATH)
+        add_subject_path(self.SUBJECT_PATH)
         self.api = api.SCODataStore(self.mongo, API_DIR)
-        
+
     def test_missing_image_group(self):
         """Test successful model run."""
         # Create subject, image group and experiment
-        subject = self.api.subjects_create(SUBJECT_FILE)
-        images = self.api.images_create(IMAGES_ARCHIVE)
-        experiment = self.api.experiments_create('My Experiment', subject.identifier, images.identifier)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
+        images = self.api.images_create(self.IMAGES_ARCHIVE)
+        experiment = self.api.experiments_create(subject.identifier, images.identifier, {'name':'My Experiment'})
         # Create new model run
         model_run = self.api.experiments_predictions_create(experiment.identifier, 'My Run')
         # Delete Image Group
@@ -60,9 +62,9 @@ class TestSCOEngine(unittest.TestCase):
     def test_missing_subject(self):
         """Test successful model run."""
         # Create subject, image group and experiment
-        subject = self.api.subjects_create(SUBJECT_FILE)
-        images = self.api.images_create(IMAGES_ARCHIVE)
-        experiment = self.api.experiments_create('My Experiment', subject.identifier, images.identifier)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
+        images = self.api.images_create(self.IMAGES_ARCHIVE)
+        experiment = self.api.experiments_create(subject.identifier, images.identifier, {'name':'My Experiment'})
         # Create new model run
         model_run = self.api.experiments_predictions_create(experiment.identifier, 'My Run')
         # Delete subject
@@ -75,9 +77,9 @@ class TestSCOEngine(unittest.TestCase):
     def test_successful_model_run(self):
         """Test successful model run."""
         # Create subject, image group and experiment
-        subject = self.api.subjects_create(SUBJECT_FILE)
-        images = self.api.images_create(IMAGES_ARCHIVE)
-        experiment = self.api.experiments_create('My Experiment', subject.identifier, images.identifier)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
+        images = self.api.images_create(self.IMAGES_ARCHIVE)
+        experiment = self.api.experiments_create(subject.identifier, images.identifier, {'name':'My Experiment'})
         # Create new model run
         model_run = self.api.experiments_predictions_create(experiment.identifier, 'My Run')
         run_sco(self.mongo, API_DIR, model_run)
@@ -91,9 +93,9 @@ class TestSCOEngine(unittest.TestCase):
     def test_topology_mismatch(self):
         """Test successful model run."""
         # Create subject, image group and experiment
-        subject = self.api.subjects_create(FAIL_SUBJECT_FILE)
-        images = self.api.images_create(IMAGES_ARCHIVE)
-        experiment = self.api.experiments_create('My Experiment', subject.identifier, images.identifier)
+        subject = self.api.subjects_create(self.FAIL_SUBJECT_FILE)
+        images = self.api.images_create(self.IMAGES_ARCHIVE)
+        experiment = self.api.experiments_create(subject.identifier, images.identifier, {'name':'My Experiment'})
         # Create new model run
         model_run = self.api.experiments_predictions_create(experiment.identifier, 'My Run')
         run_sco(self.mongo, API_DIR, model_run)
@@ -103,4 +105,8 @@ class TestSCOEngine(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    # Pass data directory as optional parameter
+    if len(sys.argv) == 2:
+        DATA_DIR = sys.argv[1]
+    sys.argv = sys.argv[:1]
     unittest.main()

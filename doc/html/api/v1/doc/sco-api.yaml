@@ -2,8 +2,8 @@ swagger: "2.0"
 
 info:
   version: 0.0.1
-  title: Data Server - Web API
-  description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store
+  title: Data Store and Model Engine Web API
+  description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store and Predictive Model Engine
   license:
     name: GNU GPLv3
     url: https://www.gnu.org/licenses/gpl-3.0.en.html
@@ -84,16 +84,16 @@ paths:
                   schema:
                       type: object
                       required:
-                          - name
                           - subject
                           - images
+                          - properties
                       properties:
-                          name:
-                              type : string
                           subject:
                               type: string
                           images:
                               type: string
+                          properties:
+                              $ref: "#/definitions/UpsertProperties"
             consumes:
                 - application/json
             produces:
@@ -162,7 +162,7 @@ paths:
                   required: true
                   description: Key-value pair defining property and new value
                   schema:
-                      $ref: "#/definitions/UpsertProperty"
+                      $ref: "#/definitions/UpsertPropertiesRequest"
             responses:
                 200:
                     description: Property updated
@@ -290,7 +290,7 @@ paths:
                   required: true
                   description: Key-value pair defining property and new value
                   schema:
-                      $ref: "#/definitions/UpsertProperty"
+                      $ref: "#/definitions/UpsertPropertiesRequest"
             responses:
                 200:
                     description: Property updated
@@ -485,7 +485,7 @@ paths:
                   required: true
                   description: Key-value pair defining property and new value
                   schema:
-                      $ref: "#/definitions/UpsertProperty"
+                      $ref: "#/definitions/UpsertPropertiesRequest"
             responses:
                 200:
                     description: Property updated
@@ -586,7 +586,7 @@ paths:
                   required: true
                   description: Key-value pair defining property and new value
                   schema:
-                      $ref: "#/definitions/UpsertProperty"
+                      $ref: "#/definitions/UpsertPropertiesRequest"
             responses:
                 200:
                     description: Property updated
@@ -795,7 +795,7 @@ paths:
                   required: true
                   description: Key-value pair defining property and new value
                   schema:
-                      $ref: "#/definitions/UpsertProperty"
+                      $ref: "#/definitions/UpsertPropertiesRequest"
             responses:
                 200:
                     description: Property updated
@@ -943,7 +943,7 @@ paths:
                   required: true
                   description: Key-value pair defining property and new value
                   schema:
-                      $ref: "#/definitions/UpsertProperty"
+                      $ref: "#/definitions/UpsertPropertiesRequest"
             responses:
                 200:
                     description: Property updated
@@ -1105,7 +1105,6 @@ definitions:
         type: object
         required:
             - key
-            - value
         properties:
             key:
                 type: string
@@ -1193,5 +1192,14 @@ definitions:
                 type: string
             href:
                 type: string
-    UpsertProperty:
-        $ref: "#/definitions/KeyValuePair"
+    UpsertProperties:
+        type: array
+        items:
+            $ref: "#/definitions/KeyValuePair"
+    UpsertPropertiesRequest:
+        type: object
+        required:
+            - properties
+        properties:
+            properties:
+                $ref: "#/definitions/UpsertProperties"

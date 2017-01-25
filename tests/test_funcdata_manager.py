@@ -10,8 +10,8 @@ import scoserv.mongo as mongo
 import scoserv.db.funcdata as funcdata
 
 FMRIS_DIR = '/tmp/sco/funcdata'
-DATA_DIR = './data/fmris'
-FMRI_ARCHIVE = 'fake-fmri.tar.gz'
+DATA_DIR = './data'
+FMRI_ARCHIVE = 'fmris/fake-fmri.tar.gz'
 
 class TestFuncDataManagerMethods(unittest.TestCase):
 
@@ -30,7 +30,7 @@ class TestFuncDataManagerMethods(unittest.TestCase):
     def test_funcdata_create(self):
         """Test creation of functional data objects from files."""
         # Create a functional data object from an archive file
-        tmp_file = os.path.join(FMRIS_DIR, FMRI_ARCHIVE)
+        tmp_file = os.path.join(FMRIS_DIR, os.path.basename(FMRI_ARCHIVE))
         shutil.copyfile(os.path.join(DATA_DIR, FMRI_ARCHIVE), tmp_file)
         fmri = self.mngr.create_object(tmp_file)
         # Assert that object is active and is_image property is true
@@ -46,4 +46,8 @@ class TestFuncDataManagerMethods(unittest.TestCase):
         self.assertEqual(self.mngr.get_object(fmri.identifier).identifier, fmri.identifier)
 
 if __name__ == '__main__':
+    # Pass data directory as optional parameter
+    if len(sys.argv) == 2:
+        DATA_DIR = sys.argv[1]
+    sys.argv = sys.argv[:1]
     unittest.main()

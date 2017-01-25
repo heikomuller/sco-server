@@ -10,9 +10,10 @@ import scoserv.mongo as mongo
 import scoserv.db.attribute as attributes
 import scoserv.db.image as images
 
-IMAGES_DIR = '/tmp/sco/images'
-DATA_DIR = './data/images'
-IMAGES_ARCHIVE = 'images.tar.gz'
+TMP_DIR = '/tmp/sco/images'
+DATA_DIR = './data'
+IMAGES_DIR = 'images'
+IMAGES_ARCHIVE = 'images/images.tar.gz'
 
 class TestImageManagerMethods(unittest.TestCase):
 
@@ -24,24 +25,25 @@ class TestImageManagerMethods(unittest.TestCase):
         db = m.get_database()
         db.images.drop()
         db.imagegroups.drop()
-        if os.path.isdir(IMAGES_DIR):
-            shutil.rmtree(IMAGES_DIR)
-        os.makedirs(IMAGES_DIR)
-        self.mngr_images = images.DefaultImageManager(db.images, IMAGES_DIR)
-        self.mngr_groups = images.DefaultImageGroupManager(db.imagegroups, IMAGES_DIR, self.mngr_images)
+        if os.path.isdir(TMP_DIR):
+            shutil.rmtree(TMP_DIR)
+        os.makedirs(TMP_DIR)
+        self.mngr_images = images.DefaultImageManager(db.images, TMP_DIR)
+        self.mngr_groups = images.DefaultImageGroupManager(db.imagegroups, TMP_DIR, self.mngr_images)
 
     def test_images_create(self):
         """Test creation of images and image groups."""
         # Create an image object for each image file in the DATA_DIR
         img_list = []
-        for f in os.listdir(DATA_DIR):
+        images_dir = os.path.join(DATA_DIR, IMAGES_DIR)
+        for f in os.listdir(images_dir):
             prop_name = str(f)
             pos = prop_name.rfind('.')
             if pos >= 0:
                 suffix = prop_name[pos:].lower()
                 # Create temp copy of the file
-                tmp_file = os.path.join(IMAGES_DIR, f)
-                shutil.copyfile(os.path.join(DATA_DIR, f), tmp_file)
+                tmp_file = os.path.join(TMP_DIR, f)
+                shutil.copyfile(os.path.join(images_dir, f), tmp_file)
                 if suffix in images.VALID_IMGFILE_SUFFIXES:
                     img = self.mngr_images.create_object(tmp_file)
                     # Assert that object is active and is_image property is true
@@ -71,7 +73,7 @@ class TestImageManagerMethods(unittest.TestCase):
             self.assertTrue(os.path.isfile(img.image_file))
             group.append(images.GroupImage(img_id, '/', img.name, ''))
         # Create image group for image objects
-        tmp_file = os.path.join(IMAGES_DIR, IMAGES_ARCHIVE)
+        tmp_file = os.path.join(TMP_DIR, os.path.basename(IMAGES_ARCHIVE))
         shutil.copyfile(os.path.join(DATA_DIR, IMAGES_ARCHIVE), tmp_file)
         img_group = self.mngr_groups.create_object('NAME', group, tmp_file)
         # Ensure that object is active and is_image_group property is true
@@ -107,7 +109,7 @@ class TestImageManagerMethods(unittest.TestCase):
         group."""
         # Create image group with fake image
         group = [images.GroupImage('1', '/', 'NAME', '')]
-        tmp_file = os.path.join(IMAGES_DIR, IMAGES_ARCHIVE)
+        tmp_file = os.path.join(TMP_DIR, os.path.basename(IMAGES_ARCHIVE))
         shutil.copyfile(os.path.join(DATA_DIR, IMAGES_ARCHIVE), tmp_file)
         img_group = self.mngr_groups.create_object(
             'NAME',
@@ -152,4 +154,8 @@ class TestImageManagerMethods(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    # Pass data directory as optional parameter
+    if len(sys.argv) == 2:
+        DATA_DIR = sys.argv[1]
+    sys.argv = sys.argv[:1]
     unittest.main()

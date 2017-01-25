@@ -106,22 +106,26 @@ class SCODataStore(object):
     # Experiments
     # --------------------------------------------------------------------------
 
-    def experiments_create(self, name, subject, images):
+    def experiments_create(self, subject, images, properties):
         """Create an experiment object with subject, and image group. Objects
         are referenced by their unique identifiers. The API ensure that at time
         of creation all referenced objects exist. Referential consistency,
         however, is currently not enforced when objects are deleted.
 
-        If a referenced object does not exist a ValueError is thrown.
+        Expects experiment name in property list. Raises ValueError if no valid
+        name is given.
+
+        If any of the referenced objects do not exist a ValueError is thrown.
 
         Parameters
         ----------
-        name : string
-            User-provided name for the experiment
         subject : string
             Unique identifier of subject
         images : string
             Unique identifier of image group
+        properties : Dictionary
+            Set of experiment properties. Is required to contain at least the
+            experiment name
 
         Returns
         -------
@@ -134,7 +138,7 @@ class SCODataStore(object):
         # Ensure that referenced image group exists
         if self.image_groups_get(images) is None:
             raise ValueError('unknown image group: ' + images)
-        return self.experiments.create_object(name, subject, images)
+        return self.experiments.create_object(subject, images, properties)
 
     def experiments_delete(self, identifier):
         """Delete experiment with given identifier in the database. At the
@@ -267,30 +271,31 @@ class SCODataStore(object):
         # Create fMRI handle from functional data handle
         return funcdata.FMRIDataHandle(func_data, identifier)
 
-    def experiments_fmri_upsert_property(self, identifier, key, value=None):
+    def experiments_fmri_upsert_property(self, identifier, properties):
         """Upsert property of fMRI data object associated with given experiment.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
 
         Parameters
         ----------
         identifier : string
             Unique experiment identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
 
         Returns
         -------
-        int
-            Operation result code, i.e., one of OP_NOT_EXISTS, OP_ILLEGAL,
-            OP_DELETED, OP_CREATED, OP_UPDATED
+        FMRIDataHandle
+            Handle for updated object of None if object doesn't exist
         """
-        # Get experiment fMRI to ensure that it exists
+        # Get experiment fMRI to ensure that it exists. Needed to get fMRI
+        # data object identifier for given experiment identifier
         fmri = self.experiments_fmri_get(identifier)
         if fmri is None:
-            return datastore.OP_NOT_EXISTS
-        # Update property of referenced fMRI data object
-        return self.funcdata.upsert_object_property(fmri.identifier, key, value=value)
+            return None
+        # Update properties for fMRI object using the object identifier
+        return self.funcdata.upsert_object_property(fmri.identifier, properties)
 
     def experiments_get(self, identifier):
         """Retrieve experiment with given identifier.
@@ -485,8 +490,11 @@ class SCODataStore(object):
         # Update predition state
         return self.predictions.update_state(prediction, state)
 
-    def experiments_predictions_upsert_property(self, experiment, prediction, key, value=None):
+    def experiments_predictions_upsert_property(self, experiment, prediction, properties):
         """Upsert property of a prodiction for an experiment.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
 
         Parameters
         ----------
@@ -494,43 +502,40 @@ class SCODataStore(object):
             Unique experiment identifier
         prediction : string
             Unique prediction identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
 
         Returns
         -------
-        int
-            Operation result code, i.e., one of OP_NOT_EXISTS, OP_ILLEGAL,
-            OP_DELETED, OP_CREATED, OP_UPDATED
+        ModelRunHandle
+            Handle for updated object of None if object doesn't exist
         """
-        # Get predition to ensure that it exists
-        model_run = self.experiments_predictions_get(experiment, prediction)
-        if model_run is None:
-            return datastore.OP_NOT_EXISTS
+        # Get predition to ensure that it exists. Ensures that the combination
+        # of experiment and prediction identifier is valid.
+        if self.experiments_predictions_get(experiment, prediction) is None:
+            return None
         # Return result of upsert for identifier model run
-        return self.predictions.upsert_object_property(prediction, key, value=value)
+        return self.predictions.upsert_object_property(prediction, properties)
 
-    def experiments_upsert_property(self, identifier, key, value=None):
+    def experiments_upsert_property(self, identifier, properties):
         """Upsert property of given experiment.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
 
         Parameters
         ----------
         identifier : string
             Unique experiment identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
 
         Returns
         -------
-        int
-            Operation result code, i.e., one of OP_NOT_EXISTS, OP_ILLEGAL,
-            OP_DELETED, OP_CREATED, OP_UPDATED
+        ExperimentHandle
+            Handle for updated object of None if object doesn't exist
         """
-        return self.experiments.upsert_object_property(identifier, key, value=value)
+        return self.experiments.upsert_object_property(identifier, properties)
 
     # --------------------------------------------------------------------------
     # Images
@@ -553,7 +558,7 @@ class SCODataStore(object):
         Returns
         -------
         DataObjectHandle
-            Handle for create dtabase object. Either an ImageHandle or
+            Handle for create dtabase object. Either an ImageHandle or an
             ImageGroupHandle
         """
         # Check if file is a single image
@@ -671,25 +676,25 @@ class SCODataStore(object):
         """
         return self.images.list_objects(limit=limit, offset=offset)
 
-    def image_files_upsert_property(self, identifier, key, value=None):
+    def image_files_upsert_property(self, identifier, properties):
         """Upsert property of given image.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
 
         Parameters
         ----------
         identifier : string
             Unique image object identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
 
         Returns
         -------
-        int
-            Operation result code, i.e., one of OP_NOT_EXISTS, OP_ILLEGAL,
-            OP_DELETED, OP_CREATED, OP_UPDATED
+        ImageHandle
+            Handle for updated object of None if object doesn't exist
         """
-        return self.images.upsert_object_property(identifier, key, value=value)
+        return self.images.upsert_object_property(identifier, properties)
 
     def image_groups_delete(self, identifier):
         """Delete image group object with given identifier. At the moment, this
@@ -808,25 +813,25 @@ class SCODataStore(object):
         """
         return self.image_groups.update_object_options(identifier, options)
 
-    def image_groups_upsert_property(self, identifier, key, value=None):
+    def image_groups_upsert_property(self, identifier, properties):
         """Upsert property of given image group.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
 
         Parameters
         ----------
         identifier : string
             Unique image group object identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
 
         Returns
         -------
-        int
-            Operation result code, i.e., one of OP_NOT_EXISTS, OP_ILLEGAL,
-            OP_DELETED, OP_CREATED, OP_UPDATED
+        ImageGroupHandle
+            Handle for updated object of None if object doesn't exist
         """
-        return self.image_groups.upsert_object_property(identifier, key, value=value)
+        return self.image_groups.upsert_object_property(identifier, properties)
 
     # --------------------------------------------------------------------------
     # Subjects
@@ -930,25 +935,25 @@ class SCODataStore(object):
         """
         return self.subjects.list_objects(limit=limit, offset=offset)
 
-    def subjects_upsert_property(self, identifier, key, value=None):
+    def subjects_upsert_property(self, identifier, properties):
         """Upsert property of given subject.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
 
         Parameters
         ----------
         identifier : string
             Unique subject identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
 
         Returns
         -------
-        int
-            Operation result code, i.e., one of OP_NOT_EXISTS, OP_ILLEGAL,
-            OP_DELETED, OP_CREATED, OP_UPDATED
+        SubjectHandle
+            Handle for updated object of None if object doesn't exist
         """
-        return self.subjects.upsert_object_property(identifier, key, value=value)
+        return self.subjects.upsert_object_property(identifier, properties)
 
 # ------------------------------------------------------------------------------
 #

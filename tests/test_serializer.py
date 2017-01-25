@@ -217,7 +217,8 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue('state' in json)
         self.assertTrue('arguments' in json)
         self.assertTrue('experiment' in json)
-        self.assertEqual(len(json), 8)
+        self.assertTrue('schedule' in json)
+        self.assertEqual(len(json), 9)
         # Ensure basic values are correct
         self.assertEqual(json['id'], OBJECT_ID)
         self.assertEqual(json['name'], OBJECT_NAME)
@@ -258,7 +259,8 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue('state' in json)
         self.assertTrue('arguments' in json)
         self.assertTrue('experiment' in json)
-        self.assertEqual(len(json), 8)
+        self.assertTrue('schedule' in json)
+        self.assertEqual(len(json), 9)
         # Ensure basic values are correct
         self.assertEqual(json['state'], 'RUNNING')
         # Make sure links are present and correct
@@ -280,7 +282,8 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue('arguments' in json)
         self.assertTrue('errors' in json)
         self.assertTrue('experiment' in json)
-        self.assertEqual(len(json), 9)
+        self.assertTrue('schedule' in json)
+        self.assertEqual(len(json), 10)
         # Ensure error messages are there
         self.assertEqual(len(json['errors']), 2)
         # Ensure basic values are correct
@@ -303,7 +306,8 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue('state' in json)
         self.assertTrue('arguments' in json)
         self.assertTrue('experiment' in json)
-        self.assertEqual(len(json), 8)
+        self.assertTrue('schedule' in json)
+        self.assertEqual(len(json), 9)
         # Ensure basic values are correct
         self.assertEqual(json['state'], 'SUCCESS')
         # Make sure links are present and correct

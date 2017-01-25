@@ -12,6 +12,19 @@ import datastore
 
 # ------------------------------------------------------------------------------
 #
+# Constants
+#
+# ------------------------------------------------------------------------------
+
+# Timestamp of run creation
+RUN_CREATED = 'createdAt'
+# Timestamp of run start
+RUN_STARTED = 'startedAt'
+# Timestamp of run end
+RUN_FINISHED = 'finishedAt'
+
+# ------------------------------------------------------------------------------
+#
 # Model Run State Objects
 #
 # ------------------------------------------------------------------------------
@@ -217,6 +230,8 @@ class ModelRunHandle(datastore.ObjectHandle):
         Dictionary of typed attributes defining the image group options
     experiment : string
         Unique experiment object identifier
+    schedule : Dictionary(string)
+        Timestamps for model run state changes
     state: ModelRunState
         Model run state object
     """
@@ -227,6 +242,7 @@ class ModelRunHandle(datastore.ObjectHandle):
         state,
         experiment,
         arguments,
+        schedule=None,
         timestamp=None,
         is_active=True):
         """Initialize the subject handle.
@@ -243,6 +259,9 @@ class ModelRunHandle(datastore.ObjectHandle):
             Unique experiment object identifier
         arguments: Dictionary(attribute.Attribute)
             Dictionary of typed attributes defining the model run arguments
+        schedule : Dictionary(string), optional
+            Timestamps for model run state changes. Only optinal if timestamp is
+            missing as well.
         timestamp : datetime, optional
             Time stamp of object creation (UTC).
         is_active : Boolean, optional
@@ -259,6 +278,14 @@ class ModelRunHandle(datastore.ObjectHandle):
         self.state = state
         self.experiment = experiment
         self.arguments = arguments
+        # Set state change information. Only allowed to be missing at run
+        # creation, i.e., if timestamp is none.
+        if schedule is None:
+            if not timestamp is None:
+                raise ValueError('missing schedule information')
+            self.schedule = {RUN_CREATED : str(self.timestamp.isoformat())}
+        else:
+            self.schedule = schedule
 
     @property
     def is_model_run(self):
@@ -382,6 +409,7 @@ class DefaultModelRunManager(datastore.MongoDBStore):
             ModelRunState.from_json(document['state']),
             document['experiment'],
             attribute.attributes_from_json(document['arguments']),
+            schedule=document['schedule'],
             timestamp=datetime.datetime.strptime(
                 document['timestamp'], '%Y-%m-%dT%H:%M:%S.%f'
             ),
@@ -406,6 +434,9 @@ class DefaultModelRunManager(datastore.MongoDBStore):
         json_obj = super(DefaultModelRunManager, self).to_json(model_run)
         # Add run state
         json_obj['state'] = ModelRunState.to_json(model_run.state)
+        # Add run scheduling Timestamps
+        json_obj['schedule'] = model_run.schedule
+        # Add experiment information
         json_obj['experiment'] = model_run.experiment
         # Transform dictionary of attributes into list of key-value pairs.
         json_obj['arguments'] = attribute.attributes_to_json(model_run.arguments)
@@ -413,6 +444,8 @@ class DefaultModelRunManager(datastore.MongoDBStore):
 
     def update_state(self, identifier, state):
         """Update state of identified model run.
+
+        Raises exception if state change results in invalid run life cycle.
 
         Parameters
         ----------
@@ -431,6 +464,21 @@ class DefaultModelRunManager(datastore.MongoDBStore):
         model_run = self.get_object(identifier)
         if model_run is None:
             return None
+        # Set timestamp of state change. Raise exception if state change results
+        # in invalid life cycle
+        timestamp = str(datetime.datetime.utcnow().isoformat())
+        if state.is_idle:
+            raise ValueError('invalid state change: run cannot become idle')
+        elif state.is_running:
+            # Current state is required to be IDLE
+            if not model_run.state.is_idle:
+                raise ValueError('invalid state change: run cannot become idle')
+            model_run.schedule[RUN_STARTED] = timestamp
+        elif state.is_failed or state.is_success:
+            # Current state is required to be RUNNING
+            if not model_run.state.is_running:
+                raise ValueError('invalid state change: cannot finish inactive run')
+            model_run.schedule[RUN_FINISHED] = timestamp
         # Update model run state and replace object in database
         model_run.state = state
         model_run.properties[datastore.PROPERTY_STATE] = str(state)

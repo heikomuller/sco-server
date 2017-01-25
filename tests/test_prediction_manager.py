@@ -123,8 +123,15 @@ class TestPredictionManagerMethods(unittest.TestCase):
         self.assertEqual(model_run.properties[datastore.PROPERTY_STATE], str(state))
         self.assertTrue('Some error' in model_run.state.errors)
         #
-        # Set state to success
+        # Set state to success. Will raise exception because run is incactive
         #
+        state = predictions.ModelRunSuccess('preditcion-id')
+        with self.assertRaises(ValueError):
+            self.mngr.update_state(model_run.identifier, state)
+        # Create an model run and ensure that we can set state to success for
+        # active run
+        model_run = self.mngr.create_object('NAME', 'experiment-id')
+        model_run = self.mngr.update_state(model_run.identifier, predictions.ModelRunActive())
         state = predictions.ModelRunSuccess('preditcion-id')
         model_run = self.mngr.update_state(model_run.identifier, state)
         self.assertIsNotNone(model_run)

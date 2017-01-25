@@ -125,6 +125,8 @@ class JsonWebAPISerializer(object):
         json_obj['state'] =  str(model_run.state)
         if model_run.state.is_failed:
             json_obj['errors'] = model_run.state.errors
+        # Add life cycle Timestamps
+        json_obj['schedule'] = model_run.schedule
         # Add model run arguments
         json_obj['arguments'] = [
             {

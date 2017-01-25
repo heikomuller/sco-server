@@ -11,14 +11,15 @@ import scoserv.mongo as mongo
 import scoserv.db.subject as subjects
 
 SUBJECT_DIR = '/tmp/sco/subjects'
-SUBJECT_FILE = './data/subjects/subject.tar.gz'
-FALSE_SUBJECT_FILE = './data/subjects/false-subject.tar.gz'
+DATA_DIR = './data'
 
 class TestSubjectManagerMethods(unittest.TestCase):
 
     def setUp(self):
         """Connect to MongoDB and clear an existing subjects collection. Ensure
         that data directory exists and is empty. Then create subject manager."""
+        self.SUBJECT_FILE = os.path.join(DATA_DIR, 'subjects/ernie.tar.gz')
+        self.FALSE_SUBJECT_FILE = os.path.join(DATA_DIR, 'subjects/false-subject.tar.gz')
         m = mongo.MongoDBFactory(db_name='scotest')
         db = m.get_database()
         db.subjects.drop()
@@ -31,7 +32,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         """Test creation of subject objects in the database through file
         upload."""
         # Create temp subject file
-        subject = self.mngr.upload_file(SUBJECT_FILE)
+        subject = self.mngr.upload_file(self.SUBJECT_FILE)
         # Ensure that the created object is active
         self.assertTrue(subject.is_active)
         # Ensure that is_subject property s True
@@ -49,7 +50,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         # Ensure that the subjects uplaod directory is equal to upload_file
         # directory
         self.assertEquals(subject.upload_directory, upload_file)
-        upload_file = os.path.join(upload_file, os.path.basename(SUBJECT_FILE))
+        upload_file = os.path.join(upload_file, os.path.basename(self.SUBJECT_FILE))
         self.assertTrue(os.path.isfile(upload_file))
         # Ensure that data directory exists and is a Freesurfer directory
         subject_dir = os.path.join(SUBJECT_DIR, subject.identifier)
@@ -60,7 +61,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         # Ensure that subjects can be created from uncompressed tar files
         # Create uncompressed copy of subject first
         tmp_file = os.path.join(SUBJECT_DIR, 's.tar')
-        f_in = gzip.open(SUBJECT_FILE, 'rb')
+        f_in = gzip.open(self.SUBJECT_FILE, 'rb')
         f_out = open(tmp_file, 'wb')
         f_out.write( f_in.read() )
         f_in.close()
@@ -77,13 +78,13 @@ class TestSubjectManagerMethods(unittest.TestCase):
         subject_dir = os.path.join(subject_dir, 'data')
         # Ensure that fake file upload raises exception
         with self.assertRaises(ValueError):
-            self.mngr.upload_file(FALSE_SUBJECT_FILE)
+            self.mngr.upload_file(self.FALSE_SUBJECT_FILE)
         # Ensure that erase works as well
         self.assertIsNotNone(self.mngr.delete_object(subject.identifier, erase=True))
 
     def test_subjects_get_list_delete(self):
         # Create temp subject file
-        subject = self.mngr.upload_file(SUBJECT_FILE)
+        subject = self.mngr.upload_file(self.SUBJECT_FILE)
         # Ensure that there is exactly one subject in the database with the
         # same id as the created subject
         listing = self.mngr.list_objects()
@@ -91,7 +92,7 @@ class TestSubjectManagerMethods(unittest.TestCase):
         self.assertEqual(len(listing.items), 1)
         self.assertEqual(listing.items[0].identifier, subject.identifier)
         # Create a second subject from the same file
-        subject = self.mngr.upload_file(SUBJECT_FILE)
+        subject = self.mngr.upload_file(self.SUBJECT_FILE)
         # Ensure that the listing now has two elements
         listing = self.mngr.list_objects()
         self.assertEqual(listing.total_count, 2)
@@ -115,8 +116,12 @@ class TestSubjectManagerMethods(unittest.TestCase):
         # Ensure that deleting deleted object is None
         self.assertIsNone(self.mngr.delete_object(subject.identifier))
         # Ensure that erase works as well
-        subject = self.mngr.upload_file(SUBJECT_FILE)
+        subject = self.mngr.upload_file(self.SUBJECT_FILE)
         self.assertIsNotNone(self.mngr.delete_object(subject.identifier, erase=True))
 
 if __name__ == '__main__':
+    # Pass data directory as optional parameter
+    if len(sys.argv) == 2:
+        DATA_DIR = sys.argv[1]
+    sys.argv = sys.argv[:1]
     unittest.main()

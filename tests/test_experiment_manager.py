@@ -22,7 +22,7 @@ class TestExperimentManagerMethods(unittest.TestCase):
     def test_experiment_create(self):
         """Test creation of experiment objects."""
         # Create an experiment from fake data
-        experiment = self.mngr.create_object('NAME', 'subject-id', 'images-id')
+        experiment = self.mngr.create_object('subject-id', 'images-id', {'name':'NAME'})
         # Assert that object is active and is_image property is true
         self.assertTrue(experiment.is_active)
         self.assertTrue(experiment.is_experiment)
@@ -51,7 +51,7 @@ class TestExperimentManagerMethods(unittest.TestCase):
         self.assertEqual(experiment.fmri_data, 'fmri-id')
 
         # Create an experiment from fake data this time with functional data
-        experiment = self.mngr.create_object('NAME', 'subject-id', 'images-id', 'fmri-id')
+        experiment = self.mngr.create_object('subject-id', 'images-id', {'name':'NAME'}, fmri_data='fmri-id')
         experiment = self.mngr.get_object(experiment.identifier)
         # Ensure that subject and image objects are referenced properly
         self.assertEqual(experiment.subject, 'subject-id')

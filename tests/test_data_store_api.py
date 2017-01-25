@@ -14,18 +14,18 @@ import scoserv.db.datastore as datastore
 import scoserv.db.prediction as prediction
 
 API_DIR = '/tmp/sco'
-
-SUBJECT_FILE = './data/subjects/subject.tar.gz'
-IMAGE_FILE = './data/images/collapse.gif'
-NON_IMAGE_FILE = './data/images/no-image.txt'
-IMAGE_GROUP_FILE = './data/images/images.tar.gz'
-FMRI_FILE = './data/fmris/fake-fmri.tar.gz'
+DATA_DIR = './data'
 
 class TestSCODataStoreAPIMethods(unittest.TestCase):
 
     def setUp(self):
         """Connect to MongoDB and clear any existing collections. Ensure
         that data directory exists and is empty. Then create API."""
+        self.SUBJECT_FILE = os.path.join(DATA_DIR, 'subjects/ernie.tar.gz')
+        self.IMAGE_FILE = os.path.join(DATA_DIR, 'images/collapse.gif')
+        self.NON_IMAGE_FILE = os.path.join(DATA_DIR, 'images/no-image.txt')
+        self.IMAGE_GROUP_FILE = os.path.join(DATA_DIR, 'images/images.tar.gz')
+        self.FMRI_FILE = os.path.join(DATA_DIR, 'fmris/fake-fmri.tar.gz')
         m = mongo.MongoDBFactory(db_name='scotest')
         db = m.get_database()
         db.experiments.drop()
@@ -41,20 +41,20 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
 
     def test_experiment_api(self):
         # Create subject and image group
-        subject = self.api.subjects_create(SUBJECT_FILE)
-        img_grp = self.api.images_create(IMAGE_GROUP_FILE)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
+        img_grp = self.api.images_create(self.IMAGE_GROUP_FILE)
         #
         # Create experiment
         #
-        experiment = self.api.experiments_create('Name', subject.identifier, img_grp.identifier)
+        experiment = self.api.experiments_create(subject.identifier, img_grp.identifier, {'name':'Name'})
         # Ensure it is of expected type
         self.assertTrue(experiment.is_experiment)
         # Ensure that creating experiment with missing subject or image group
         # raises an Exception
         with self.assertRaises(ValueError):
-            self.api.experiments_create('Name', 'not-a-valid-idneitifer', img_grp.identifier)
+            self.api.experiments_create('not-a-valid-idneitifer', img_grp.identifier, {'name':'Name'})
         with self.assertRaises(ValueError):
-            self.api.experiments_create('Name', subject.identifier, 'not-a-valid-idneitifer')
+            self.api.experiments_create(subject.identifier, 'not-a-valid-idneitifer', {'name':'Name'})
         #
         # Get
         #
@@ -74,14 +74,37 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         #
         # Upsert property
         #
-        self.assertEqual(
-            self.api.experiments_upsert_property(
-                experiment.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_UPDATED
+        experiment = self.api.experiments_upsert_property(
+            experiment.identifier,
+            {datastore.PROPERTY_NAME : 'Some Name',
+            'someprop' : 'somevalue'}
         )
+        self.assertIsNotNone(experiment)
+        # Ensure that properties are set as expected
+        experiment = self.api.experiments_get(experiment.identifier)
+        self.assertEqual(experiment.properties[datastore.PROPERTY_NAME], 'Some Name')
+        self.assertEqual(experiment.properties['someprop'], 'somevalue')
+        # Ensure that existing properities are not affected if not in upsert
+        experiment = self.api.experiments_upsert_property(
+            experiment.identifier,
+            {datastore.PROPERTY_NAME : 'Some Other Name'}
+        )
+        self.assertIsNotNone(experiment)
+        # Ensure that properties are set as expected
+        experiment = self.api.experiments_get(experiment.identifier)
+        self.assertEqual(experiment.properties[datastore.PROPERTY_NAME], 'Some Other Name')
+        self.assertTrue('someprop' in experiment.properties)
+        # Delete Property
+        experiment = self.api.experiments_upsert_property(
+            experiment.identifier,
+            {datastore.PROPERTY_NAME : 'Some Other Name',
+            'someprop':None}
+        )
+        self.assertIsNotNone(experiment)
+        # Ensure that properties are set as expected
+        experiment = self.api.experiments_get(experiment.identifier)
+        self.assertEqual(experiment.properties[datastore.PROPERTY_NAME], 'Some Other Name')
+        self.assertFalse('someprop' in experiment.properties)
         #
         # Delete
         #
@@ -90,29 +113,27 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         self.assertEqual(self.api.experiments_list().total_count, 0)
         # Ensure that deleting a deleted experiment returns None
         self.assertIsNone(self.api.experiments_delete(experiment.identifier))
-        # Updating the name of deleted experiment should return OP_NOT_EXISTS
-        self.assertEqual(
+        # Updating the name of deleted experiment should return None
+        self.assertIsNone(
             self.api.experiments_upsert_property(
                 experiment.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_NOT_EXISTS
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
 
     def test_experiment_fmri_api(self):
         # Create subject and image group and experiment
-        subject = self.api.subjects_create(SUBJECT_FILE)
-        img_grp = self.api.images_create(IMAGE_GROUP_FILE)
-        experiment = self.api.experiments_create('Name', subject.identifier, img_grp.identifier)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
+        img_grp = self.api.images_create(self.IMAGE_GROUP_FILE)
+        experiment = self.api.experiments_create(subject.identifier, img_grp.identifier, {'name':'Name'})
         #
         # Create experiment fMRI object
         #
-        fmri = self.api.experiments_fmri_create(experiment.identifier, FMRI_FILE)
+        fmri = self.api.experiments_fmri_create(experiment.identifier, self.FMRI_FILE)
         # Ensure that object is of expected type
         self.assertTrue(fmri.is_functional_data)
         # Ensure that creating fMRI for unknown experiment returns None
-        self.assertIsNone(self.api.experiments_fmri_create('not-a-valid-identifier', FMRI_FILE))
+        self.assertIsNone(self.api.experiments_fmri_create('not-a-valid-identifier', self.FMRI_FILE))
         #
         # Get
         #
@@ -126,13 +147,11 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         #
         # Upsert property
         #
-        self.assertEqual(
+        self.assertIsNotNone(
             self.api.experiments_fmri_upsert_property(
                 experiment.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_UPDATED
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
         #
         # Delete
@@ -142,14 +161,12 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         self.assertIsNone(self.api.experiments_fmri_get(experiment.identifier))
         # Ensure that deleting a deleted experiment returns None
         self.assertIsNone(self.api.experiments_fmri_delete(experiment.identifier))
-        # Updating the name of deleted experiment should return OP_NOT_EXISTS
-        self.assertEqual(
+        # Updating the name of deleted experiment should return None
+        self.assertIsNone(
             self.api.experiments_fmri_upsert_property(
                 experiment.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_NOT_EXISTS
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
         # File info should be None
         self.assertIsNone(self.api.experiments_fmri_download(experiment.identifier))
@@ -157,9 +174,9 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
 
     def test_experiment_prediction_api(self):
         # Create subject and image group and experiment
-        subject = self.api.subjects_create(SUBJECT_FILE)
-        img_grp = self.api.images_create(IMAGE_GROUP_FILE)
-        experiment = self.api.experiments_create('Name', subject.identifier, img_grp.identifier)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
+        img_grp = self.api.images_create(self.IMAGE_GROUP_FILE)
+        experiment = self.api.experiments_create(subject.identifier, img_grp.identifier, {'name':'Name'})
         #
         # Create experiment prediction object
         #
@@ -169,7 +186,7 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         # Ensure that creating fMRI for unknown experiment returns None
         self.assertIsNone(self.api.experiments_predictions_create('not-a-valid-identifier', 'Name'))
         # Create second experiment and prediction with arguments
-        exp2 = self.api.experiments_create('Name', subject.identifier, img_grp.identifier)
+        exp2 = self.api.experiments_create(subject.identifier, img_grp.identifier, {'name':'Name'})
         mr2 = self.api.experiments_predictions_create(
             exp2.identifier,
             'Name',
@@ -201,14 +218,12 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         #
         # Upsert properties
         #
-        self.assertEqual(
+        self.assertIsNotNone(
             self.api.experiments_predictions_upsert_property(
                 experiment.identifier,
                 model_run.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_UPDATED
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
         #
         # State
@@ -229,12 +244,12 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         #
         # Create image object file
         #
-        img = self.api.images_create(IMAGE_FILE)
+        img = self.api.images_create(self.IMAGE_FILE)
         # Ensure that the created object is an image file
         self.assertTrue(img.is_image)
         # Ensure that creating image with invalid suffix raises Exception
         with self.assertRaises(ValueError):
-            self.api.images_create(NON_IMAGE_FILE)
+            self.api.images_create(self.NON_IMAGE_FILE)
         #
         # Get image and ensure that it is still of expected type
         #
@@ -253,25 +268,20 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         # The download for a non-existing image should be None
         self.assertIsNone(self.api.image_files_download('not-a-valid-identifier'))
         #
-        # Updating the image name should return OP_UPDATED
+        # Updating the image name should return object handle
         #
-        self.assertEqual(
+        self.assertIsNotNone(
             self.api.image_files_upsert_property(
                 img.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_UPDATED
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
-        # Updating the file name should return OP_ILLEGAL
-        self.assertEqual(
+        # Updating the file name should raise exception
+        with self.assertRaises(ValueError):
             self.api.image_files_upsert_property(
                 img.identifier,
-                datastore.PROPERTY_FILENAME,
-                'Some.Name'
-            ),
-            datastore.OP_ILLEGAL
-        )
+                {datastore.PROPERTY_FILENAME : 'Some.Name'}
+            )
         #
         # Assert that delete returns not None
         #
@@ -280,20 +290,18 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         self.assertEqual(self.api.image_files_list().total_count, 0)
         # Ensure that deleting a deleted image returns None
         self.assertIsNone(self.api.image_files_delete(img.identifier))
-        # Updating the name of deleted image should return OP_NOT_EXISTS
-        self.assertEqual(
+        # Updating the name of deleted image should return None
+        self.assertIsNone(
             self.api.image_files_upsert_property(
                 img.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_NOT_EXISTS
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
 
     def test_image_groups_api(self):
         """Test all image group related methods of API."""
         # Create image group object from file
-        img_grp = self.api.images_create(IMAGE_GROUP_FILE)
+        img_grp = self.api.images_create(self.IMAGE_GROUP_FILE)
         # Ensure that the created object is an image group
         self.assertTrue(img_grp.is_image_group)
         # Get image group and ensure that it is still of expected type
@@ -307,24 +315,19 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         self.assertTrue(os.path.isfile(self.api.image_groups_download(img_grp.identifier).file))
         # The download for a non-existing image should be None
         self.assertIsNone(self.api.image_groups_download('not-a-valid-identifier'))
-        # Updating the image group name should return OP_UPDATED
-        self.assertEqual(
+        # Updating the image group name should return object handle
+        self.assertIsNotNone(
             self.api.image_groups_upsert_property(
                 img_grp.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_UPDATED
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
-        # Updating the file name should return OP_ILLEGAL
-        self.assertEqual(
+        # Updating the file name should raise exception
+        with self.assertRaises(ValueError):
             self.api.image_groups_upsert_property(
                 img_grp.identifier,
-                datastore.PROPERTY_FILENAME,
-                'Some.Name'
-            ),
-            datastore.OP_ILLEGAL
-        )
+                {datastore.PROPERTY_FILENAME : 'Some.Name'}
+            )
         # Ensure that updating options does not raise exception
         self.assertIsNotNone(self.api.image_groups_update_options(
             img_grp.identifier,
@@ -347,20 +350,18 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         self.assertEqual(self.api.image_groups_list().total_count, 0)
         # Ensure that deleting a deleted image group returns None
         self.assertIsNone(self.api.image_groups_delete(img_grp.identifier))
-        # Updating the name of deleted image should return OP_NOT_EXISTS
-        self.assertEqual(
+        # Updating the name of deleted image should return None
+        self.assertIsNone(
             self.api.image_groups_upsert_property(
                 img_grp.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_NOT_EXISTS
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
 
     def test_subjects_api(self):
         """Test all subject related methods of API."""
         # Create temp subject file
-        subject = self.api.subjects_create(SUBJECT_FILE)
+        subject = self.api.subjects_create(self.SUBJECT_FILE)
         # Ensure that the created object is a subject
         self.assertTrue(subject.is_subject)
         # Get subject and ensure that it is still a subject
@@ -374,39 +375,36 @@ class TestSCODataStoreAPIMethods(unittest.TestCase):
         self.assertTrue(os.path.isfile(self.api.subjects_download(subject.identifier).file))
         # The download for a non-existing subject should be None
         self.assertIsNone(self.api.subjects_download('not-a-valid-identifier'))
-        # Updating the subject name should return OP_UPDATED
-        self.assertEqual(
+        # Updating the subject name should return object handle
+        self.assertIsNotNone(
             self.api.subjects_upsert_property(
                 subject.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_UPDATED
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
-        # Updating the file name should return OP_ILLEGAL
-        self.assertEqual(
+        # Updating the file name should raise exception
+        with self.assertRaises(ValueError):
             self.api.subjects_upsert_property(
                 subject.identifier,
-                datastore.PROPERTY_FILENAME,
-                'Some.Name'
-            ),
-            datastore.OP_ILLEGAL
-        )
+                {datastore.PROPERTY_FILENAME : 'Some.Name'}
+            )
         # Assert that delete returns not None
         self.assertIsNotNone(self.api.subjects_delete(subject.identifier))
         # Ensure that the list of subjects contains no elements
         self.assertEqual(self.api.subjects_list().total_count, 0)
         # Ensure that deleting a deleted subject returns None
         self.assertIsNone(self.api.subjects_delete(subject.identifier))
-        # Updating the name of deleted subject should return OP_NOT_EXISTS
-        self.assertEqual(
+        # Updating the name of deleted subject should return None
+        self.assertIsNone(
             self.api.subjects_upsert_property(
                 subject.identifier,
-                datastore.PROPERTY_NAME,
-                'Some Name'
-            ),
-            datastore.OP_NOT_EXISTS
+                {datastore.PROPERTY_NAME : 'Some Name'}
+            )
         )
 
 if __name__ == '__main__':
+    # Pass data directory as optional parameter
+    if len(sys.argv) == 2:
+        DATA_DIR = sys.argv[1]
+    sys.argv = sys.argv[:1]
     unittest.main()

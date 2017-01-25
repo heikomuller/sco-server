@@ -437,7 +437,7 @@ class HATEOASReferenceFactory:
             REF_KEY_SELF : self.base_url,
             REF_KEY_SERVICE_EXPERIMENTS_LIST : self.experiments_reference(),
             REF_KEY_SERVICE_EXPERIMENTS_CREATE : self.experiments_reference(),
-            REF_KEY_SERVICE_IMAGES_UPLOAD : self.base_url + '/' + URL_KEY_IMAGES,
+            REF_KEY_SERVICE_IMAGES_UPLOAD : self.base_url + '/' + URL_KEY_IMAGES + '/upload',
             REF_KEY_SERVICE_IMAGE_FILES_LIST : self.image_files_reference(),
             REF_KEY_SERVICE_IMAGE_GROUPS_LIST : self.image_groups_reference(),
             REF_KEY_SERVICE_SUBJECTS_LIST : self.subjects_reference(),

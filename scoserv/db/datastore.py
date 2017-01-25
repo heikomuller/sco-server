@@ -34,19 +34,6 @@ PROPERTY_NAME = 'name'
 # Object state
 PROPERTY_STATE = 'state'
 
-"""Return codes for operations that manipulate a set of properties."""
-
-# Requested operation could not be performed because object dows not exist
-OP_NOT_EXISTS = -1
-# Requested operation illegal due to constraints on the property set
-OP_ILLEGAL = 0
-# Operation deleted a property from the property set
-OP_DELETED = 1
-# Operation created a new property in the property set
-OP_CREATED = 2
-# Operation updated an existing property in the property set
-OP_UPDATED = 3
-
 
 # ------------------------------------------------------------------------------
 #
@@ -411,66 +398,59 @@ class ObjectStore(object):
         """
         pass
 
-    def upsert_object_property(self, identifier, key, value=None, ignore_constraints=False):
-        """Manipulate an object's property set. If the identified property does
-        not exist it is created. If the value is None an existing property is
-        deleted. Deleting mandatory properties results in an illegal operation.
-        Updating immutable properties also results in an illegal operation.
-        These constraints can be disabled using the ignore_constraints
-        parameter.
+    def upsert_object_property(self, identifier, properties, ignore_constraints=False):
+        """Manipulate an object's property set. Inserts or updates properties in
+        given dictionary. If a property key does not exist in the object's
+        property set it is created. If the value is None an existing property is
+        deleted.
 
-        The following return values are possible:
-        OP_NOT_EXISTS: Object does not exist
-        OP_ILLEGAL: Operation violates a constraint
-        OP_DELETED: Deleted
-        OP_CREATED: Created
-        OP_UPDATED: Updated
+        Existing object properties that are not present in the given property
+        set remain unaffacted.
+
+        Deleting mandatory properties or updating immutable properties results
+        in a ValueError. These constraints can be disabled using the
+        ignore_constraints parameter.
 
         Parameters
         ----------
         identifier : string
             Unique object identifier
-        key : string
-            Property name
-        value : string
-            New property value
+        properties : Dictionary()
+            Dictionary of property names and their new values.
         ignore_constraints : Boolean
             Flag indicating whether to ignore immutable and mandatory property
             constraints (True) or nore (False, Default).
 
         Returns
         -------
-        int
+        ObjectHandle
+            Handle to updated object or None if object does not exist
         """
         # Retrieve the object with the gievn identifier. This is a (sub-)class
         # of ObjectHandle
         obj = self.get_object(identifier)
         if not obj is None:
-            # If the update affects an immutable property return OP_ILLEGAL
-            if not ignore_constraints and key in self.immutable_properties:
-                return OP_ILLEGAL
-            # Check whether the operation is an UPSERT or DELETE. If value is
-            # None we are deleting the property.
-            if not value is None:
-                # UPSERT
-                if key in obj.properties:
-                    op = OP_UPDATED
+            # Modify property set of retrieved object handle. Raise exception if
+            # and of the upserts is not valid.
+            for key in properties:
+                value = properties[key]
+                # If the update affects an immutable property raise exception
+                if not ignore_constraints and key in self.immutable_properties:
+                    raise ValueError('update to immutable property: ' + key)
+                # Check whether the operation is an UPSERT (value != None) or
+                # DELETE (value == None)
+                if not value is None:
+                    obj.properties[key] = value
                 else:
-                    op = OP_CREATED
-                obj.properties[key] = value
-            else:
-                # DELETE. Make sure the property is not mandatory
-                if not ignore_constraints and key in self.mandatory_properties:
-                    return OP_ILLEGAL
-                elif key in obj.properties:
-                    del obj.properties[key]
-                op = OP_DELETED
+                    # DELETE. Make sure the property is not mandatory
+                    if not ignore_constraints and key in self.mandatory_properties:
+                        raise ValueError('delete mandatory property: ' + key)
+                    elif key in obj.properties:
+                        del obj.properties[key]
+            # Update object in database
             self.replace_object(obj)
-            return op
-        else:
-            # No object with given identifier exists
-            return OP_NOT_EXISTS
-
+        # Return object handle
+        return obj
 
 class MongoDBStore(ObjectStore):
     """MongoDB Object Store - Abstract implementation of a data store that uses
