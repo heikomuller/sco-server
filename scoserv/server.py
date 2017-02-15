@@ -329,11 +329,17 @@ def experiments_predictions_create(experiment_id):
     for key in ['name', 'arguments']:
         if not key in json_obj:
             raise InvalidRequest('missing element in Json body: ' + key)
+    # Get dictionary of properties ifpresent in request
+    if 'properties' in json_obj:
+        properties = get_properties_list(json_obj['properties'], False)
+    else:
+        properties = None
     # Call create method of API to get a new model run object handle.
     model_run = db.experiments_predictions_create(
         experiment_id,
         json_obj['name'],
-        get_attributes(json_obj['arguments'])
+        get_attributes(json_obj['arguments']),
+        properties=properties
     )
     # The result is None if experiment does not exists
     if model_run is None:

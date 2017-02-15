@@ -329,7 +329,7 @@ class SCODataStore(object):
         """
         return self.experiments.list_objects(limit=limit, offset=offset)
 
-    def experiments_predictions_create(self, experiment, name, arguments=None):
+    def experiments_predictions_create(self, experiment, name, arguments=None, properties=None):
         """Create new model run for given experiment.
 
         Parameters
@@ -340,6 +340,8 @@ class SCODataStore(object):
             User-provided name for the model run
         arguments : List(attribute.Attribute)
             List of arguments for model run
+        properties : Dictionary, optional
+            Set of model run properties.
 
         Returns
         -------
@@ -350,7 +352,12 @@ class SCODataStore(object):
         if self.experiments_get(experiment) is None:
             return None
         # Return created model run
-        return self.predictions.create_object(name, experiment, arguments=arguments)
+        return self.predictions.create_object(
+            name,
+            experiment,
+            arguments=arguments,
+            properties=properties
+        )
 
     def experiments_predictions_delete(self, experiment, prediction):
         """Delete given prediction for experiment.

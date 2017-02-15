@@ -23,6 +23,13 @@ RUN_STARTED = 'startedAt'
 # Timestamp of run end
 RUN_FINISHED = 'finishedAt'
 
+# Run states
+STATE_FAILED = 'FAILED'
+STATE_IDLE = 'IDLE'
+STATE_RUNNING = 'RUNNING'
+STATE_SUCCESS = 'SUCCESS'
+
+
 # ------------------------------------------------------------------------------
 #
 # Model Run State Objects
@@ -115,7 +122,7 @@ class ModelRunActive(ModelRunState):
     """Object indicating an active model run."""
     def __repr__(self):
         """String representation of the run state object."""
-        return 'RUNNING'
+        return STATE_RUNNING
 
     @property
     def is_running(self):
@@ -148,7 +155,7 @@ class ModelRunFailed(ModelRunState):
 
     def __repr__(self):
         """String representation of the run state object."""
-        return 'FAILED'
+        return STATE_FAILED
 
     @property
     def is_failed(self):
@@ -162,7 +169,7 @@ class ModelRunIdle(ModelRunState):
     """Object indicating an idle model run."""
     def __repr__(self):
         """String representation of the run state object."""
-        return 'IDLE'
+        return STATE_IDLE
 
     @property
     def is_idle(self):
@@ -195,7 +202,7 @@ class ModelRunSuccess(ModelRunState):
 
     def __repr__(self):
         """String representation of the run state object."""
-        return 'SUCCESS'
+        return STATE_SUCCESS
 
     @property
     def is_success(self):
@@ -340,7 +347,7 @@ class DefaultModelRunManager(datastore.MongoDBStore):
             )
         }
 
-    def create_object(self, name, experiment, arguments=None):
+    def create_object(self, name, experiment, arguments=None, properties=None):
         """Create a model run object with the given list of arguments. The
         initial state of the object is RUNNING.
 
@@ -352,7 +359,8 @@ class DefaultModelRunManager(datastore.MongoDBStore):
             Unique identifier of associated experiment object
         arguments : list(attribute.Attribute), optional
             List of attribute instances
-
+        properties : Dictionary, optional
+            Set of model run properties.
         Returns
         -------
         PredictionHandle
@@ -363,9 +371,14 @@ class DefaultModelRunManager(datastore.MongoDBStore):
         # By default all model runs are in IDLE state at creation
         state = ModelRunIdle()
         # Create the initial set of properties.
-        properties = {
+        run_properties = {
             datastore.PROPERTY_NAME: name,
-            datastore.PROPERTY_STATE: str(state)}
+            datastore.PROPERTY_STATE: str(state)
+        }
+        if not properties is None:
+            for prop in properties:
+                if not prop in run_properties:
+                    run_properties[prop] = properties[prop]
         # If argument list is not given then the initial set of arguments is
         # given by those parameter for which a default value is defined. Use
         # default values for those arguments in the definition that are not
@@ -379,7 +392,7 @@ class DefaultModelRunManager(datastore.MongoDBStore):
         # returning it.
         obj = ModelRunHandle(
             identifier,
-            properties,
+            run_properties,
             state,
             experiment,
             run_arguments

@@ -1,7 +1,7 @@
 swagger: "2.0"
 
 info:
-  version: 0.0.1
+  version: 0.2.0
   title: Data Store and Model Engine Web API
   description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store and Predictive Model Engine
   license:
@@ -355,10 +355,10 @@ paths:
                   required: true
                   description: Unique identifier of experiment object
                   type: string
-                - name: arguments
+                - name: Run Definition
                   in: body
                   required: true
-                  description: List of arguments for model run
+                  description: Run name and list of arguments and properties
                   schema:
                       type: object
                       required:
@@ -371,6 +371,8 @@ paths:
                               type: array
                               items:
                                   $ref: "#/definitions/Attribute"
+                          properties:
+                              $ref: "#/definitions/UpsertProperties"
             responses:
                 201:
                     description: Model run started
