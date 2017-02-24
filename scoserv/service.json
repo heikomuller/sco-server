@@ -1,0 +1,26 @@
+{
+    "name" : "Standard Cortical Observer - Web API",
+    "title" : "Standard Cortical Observer @ NYU",
+    "descriptors" : [
+        {
+            "id" : "overview",
+            "title" : "Welcome",
+            "text" : "<p class=\"info\">The broad goal of the <b>Standard Cortical Observer Project</b> is to develop software and computational methods to predict fMRI responses across visual cortex to arbitrary images. Toward this end, we plan to implement and organize existing core knowledge about functional imaging of human visual cortex, and build on the existing knowledge where applicable.</p><p class=\"info\">The project combines two types of models: a voxel-wise population receptive field (pRF) model that predicts BOLD responses given an image, and a cortical template that assigns retinotopic coordinates to positions on the cortex based on anatomy. Currently, we are using an updated version of  <a class=\"text-link\" href=\"https://cfn.upenn.edu/aguirre/wiki/public:retinotopy_template\">Noah Benson'sV1-V3 anatomical template (Benson et al, 2014)</a>, and  <a class=\"text-link\" href=\"http://kendrickkay.net/socmodel/\">Kendrick Kay's two-stage cascade pRF model (Kay et al, 2013, PLoS CB)</a>. For the project, we added a mapping between visual field coordinates derived from the template and the voxel-wise pRF parameters. Going forward, we will extend the voxel-wise model to be multi-scale rather than limited to a single spatial frequency band, and we will develop software infrastructure to facilitate model development and model comparison, and to house a database of stimuli, fMRI responses, and anatomical MRI.</p>"
+        },
+        {
+            "id" : "subjects",
+            "title" : "Subjects",
+            "text" : "<p class=\"info\">Say something about subjects ...</p>"
+        },
+        {
+            "id" : "images",
+            "title" : "Images",
+            "text" : "<p class=\"info\">Say something about images ...</p>"
+        },
+        {
+            "id" : "experiments",
+            "title" : "Experiments",
+            "text" : "<p class=\"info\">Say something about experiments ...</p>"
+        }
+    ]
+}

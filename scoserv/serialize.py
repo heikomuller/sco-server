@@ -99,13 +99,15 @@ class JsonWebAPISerializer(object):
             self.refs.experiments_reference()
         )
 
-    def experiment_prediction_to_json(self, model_run):
+    def experiment_prediction_to_json(self, model_run, experiment):
         """Json serialization for model run object.
 
         Parameters
         ----------
         model_run : db.prediction.ModelRunHandle
             Model run handle
+        experiment : db.experiment.ExperimentHandle
+            Handle for experiment the run is a prediction for
 
         Returns
         -------
@@ -116,9 +118,10 @@ class JsonWebAPISerializer(object):
         json_obj = self.object_to_json(model_run)
         # Add experiment information
         json_obj['experiment'] = {
-            'id' : model_run.experiment,
+            'id' : experiment.identifier,
+            'name' : experiment.name,
             'links': hateoas.self_reference_set(
-                self.refs.experiment_reference(model_run.experiment)
+                self.refs.experiment_reference(experiment.identifier)
             )
         }
         # Add state information
@@ -228,9 +231,7 @@ class JsonWebAPISerializer(object):
                 'id' : obj.identifier,
                 'name' : obj.name,
                 'folder' : obj.folder,
-                'links' : hateoas.self_reference_set(
-                    self.refs.image_file_reference(obj.identifier)
-                )
+                'links' : self.refs.image_group_image_references(obj.identifier)
             })
         # Call generic item listing decorator
         return self.items_listing_to_json(
@@ -424,14 +425,16 @@ class JsonWebAPISerializer(object):
             'links': self.refs.object_references(obj)
         }
 
-    def service_description(self, name):
-        """Service description containing web service name and a list of
-        references to various resources.
+    def service_description(self, name, descriptors):
+        """Service description containing web service name, textual description
+        of service resources, and a list of references to various resources.
 
         Parameters
         ----------
         name : string
             Descriptive Web service name
+        descriptors: Dictionary({'id':string, 'title':string,'text':string})
+            Dictionary of descriptions for service components
 
         Returns
         -------
@@ -440,6 +443,7 @@ class JsonWebAPISerializer(object):
         """
         return {
             'name': name,
+            'descriptors' : descriptors,
             'links' : self.refs.service_references()
         }
 

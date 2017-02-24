@@ -92,10 +92,9 @@ class SCODataStore(object):
         images_dir = create_dir(os.path.join(abs_base_dir, 'images'))
         image_files_dir = create_dir(os.path.join(images_dir, 'files'))
         image_groups_dir = create_dir(os.path.join(images_dir, 'groups'))
-        predictions_dir = create_dir(os.path.join(abs_base_dir, 'predictions'))
         subjects_dir = create_dir(os.path.join(abs_base_dir, 'subjects'))
         # Create object stores
-        self.experiments = experiment.DefaultExperimentManager(db.experiments)
+        self.experiments = experiment.DefaultExperimentManager(db.experiments, db.predictions)
         self.funcdata = funcdata.DefaultFunctionalDataManager(db.funcdata, funcdata_dir)
         self.images = image.DefaultImageManager(db.images, image_files_dir)
         self.image_groups = image.DefaultImageGroupManager(db.imagegroups, image_groups_dir, self.images)

@@ -17,6 +17,8 @@ import datastore
 #
 # ------------------------------------------------------------------------------
 
+PROPERTY_GROUPSIZE = 'size'
+
 # ------------------------------------------------------------------------------
 # Dictionary of valid suffixes for image files and their respective Mime types.
 # ------------------------------------------------------------------------------
@@ -350,6 +352,8 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
                 datastore.PROPERTY_MIMETYPE
             ]
         )
+        # Add group size as read-only property
+        self.immutable_properties.add(PROPERTY_GROUPSIZE)
         # Initialize image manager reference
         self.image_manager = image_manager
         # Initialize the definition of image group options attributes
@@ -465,12 +469,15 @@ class DefaultImageGroupManager(datastore.DefaultObjectStore):
                     grp_image['name']
                 )
             ))
+        # Create list of properties and add group size
+        properties = document['properties']
+        properties[PROPERTY_GROUPSIZE] = len(document['images'])
         # Directories are simply named by object identifier
         directory = os.path.join(self.directory, identifier)
         # Create image group handle.
         return ImageGroupHandle(
             identifier,
-            document['properties'],
+            properties,
             directory,
             images,
             attribute.attributes_from_json(document['options']),

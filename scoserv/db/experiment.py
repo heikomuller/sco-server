@@ -10,6 +10,16 @@ import datastore
 
 # ------------------------------------------------------------------------------
 #
+# Constants
+#
+# ------------------------------------------------------------------------------
+
+# Read-only property for model run count
+PROPERTY_RUN_COUNT = 'runcount'
+
+
+# ------------------------------------------------------------------------------
+#
 # Database Objects
 #
 # ------------------------------------------------------------------------------
@@ -78,17 +88,22 @@ class DefaultExperimentManager(datastore.MongoDBStore):
 
     This is a default implentation that uses MongoDB as storage backend.
     """
-    def __init__(self, mongo_collection):
+    def __init__(self, coll_experiments, coll_predictions=None):
         """Initialize the MongoDB collection and base directory where to store
         functional data MRI files.
 
         Parameters
         ----------
-        mongo_collection : Collection
+        coll_experiments : Collection
             Collection in MongoDB storing functional data information
+        coll_predictions : Collection
+            Collection in MongoDB storing model run information
         """
         # Initialize the super class
-        super(DefaultExperimentManager, self).__init__(mongo_collection)
+        super(DefaultExperimentManager, self).__init__(coll_experiments)
+        self.immutable_properties.add(PROPERTY_RUN_COUNT)
+        # Set mongo db collection for predictions (may be None)
+        self.coll_predictions = coll_predictions
 
     def create_object(self, subject, images, properties, fmri_data=None):
         """Create an experiment object for the subject and image group. Objects
@@ -161,6 +176,49 @@ class DefaultExperimentManager(datastore.MongoDBStore):
             timestamp=timestamp,
             is_active=active
         )
+
+    def list_objects(self, query=None, limit=-1, offset=-1):
+        """List of all experiments in the database. Overrides the super class
+        method to allow the returned object's property lists to be extended
+        with the run count.
+
+        Parameters
+        ----------
+        query : Dictionary
+            Filter objects by property-value pairs defined by dictionary.
+        limit : int
+            Limit number of items in the result set
+        offset : int
+            Set offset in list (order as defined by object store)
+
+        Returns
+        -------
+        ObjectListing
+        """
+        # Call super class method to get the object listing
+        result = super(DefaultExperimentManager, self).list_objects(
+            query=query,
+            limit=limit,
+            offset=offset
+        )
+        # Run aggregate count on predictions if collection was given
+        if not self.coll_predictions is None:
+            # Get model run counts for active experiments. Experiments without
+            # runs will not be in the result
+            counts = {}
+            pipeline = [
+                { '$match': {'active': True}},
+                { '$group': { '_id': "$experiment", 'count': { '$sum': 1 } } }
+            ]
+            for doc in self.coll_predictions.aggregate(pipeline):
+                counts[doc['_id']] = doc['count']
+            # Set run count property for all experiments in the result set
+            for item in result.items:
+                if item.identifier in counts:
+                    item.properties[PROPERTY_RUN_COUNT] = counts[item.identifier]
+                else:
+                    item.properties[PROPERTY_RUN_COUNT] = 0
+        return result
 
     def to_json(self, experiment):
         """Create a Json-like object for an experiment. Extends the basic

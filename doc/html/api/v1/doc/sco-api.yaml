@@ -10,7 +10,7 @@ info:
 
 schemes:
   - http
-host: cds-swg1.cims.nyu.edu:5050
+host: cds-swg1.cims.nyu.edu:5000
 basePath: /sco-server/api/v1
 
 paths:
@@ -30,10 +30,26 @@ paths:
                         type: object
                         required:
                             - name
+                            - descriptors
                             - links
                         properties:
                             name:
                                 type: string
+                            descriptors:
+                                type: array
+                                items:
+                                    type: object
+                                    required:
+                                        - id
+                                        - title
+                                        - text
+                                    properties:
+                                        id:
+                                            type: string
+                                        title:
+                                            type: string
+                                        text:
+                                            type: string
                             links:
                                 type: array
                                 items:
@@ -757,7 +773,7 @@ paths:
                   required: true
                   description: Unique identifier of image group object
                   type: string
-                - name: property
+                - name: options
                   in: body
                   required: true
                   description: Key-value pair defining property and new value

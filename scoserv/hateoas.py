@@ -318,6 +318,25 @@ class HATEOASReferenceFactory:
         """
         return self.base_url + '/' + URL_KEY_IMAGES + '/' + URL_KEY_IMAGE_FILES
 
+    def image_group_image_references(self, identifier):
+        """Reference list for images in an image group listing. Contains the
+        self reference and a download link.
+
+        Parameters
+        ----------
+        identifier : string
+            Image file identifier
+
+        Returns
+        -------
+        List
+            List of reference objects, i.e., [{rel:..., href:...}]
+        """
+        return to_references({
+            REF_KEY_SELF : self.image_file_reference(identifier),
+            REF_KEY_DOWNLOAD : self.image_file_reference(identifier) + '/' + URL_SUFFIX_DOWNLOAD
+        })
+
     def image_group_images_list_reference(self, identifier):
         """Base Url to list images in a given image group object.
 

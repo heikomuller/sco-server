@@ -102,6 +102,8 @@ class AttributeDefinition(object):
         """Validate whether a given variable value is of type represented by
         the attribute type associated with this definition.
 
+        Throws ValueError is valus is not valid.
+
         Parameters
         ----------
         value : any
@@ -110,7 +112,7 @@ class AttributeDefinition(object):
         Returns
         -------
         Boolean
-            True, if value is of valid type
+            Value is of valid type
         """
         return self.type.validate(value)
 
@@ -177,6 +179,8 @@ class AttributeType(object):
         """Validate whether a given variable value is of type represented by
         this attribute type instance.
 
+        Throws ValueError is valus is not valid.
+
         Parameters
         ----------
         value : any
@@ -185,7 +189,7 @@ class AttributeType(object):
         Returns
         -------
         Boolean
-            True, if value is of valid type
+            Value is of valid type
         """
         pass
 
@@ -223,8 +227,15 @@ class ArrayType(AttributeType):
         groups.
         """
         # Make sure that the value is a list
-        if not isinstance(value, list):
-            return False
+        if isinstance(value, basestring):
+            # If the value is a string we currently expect a list of floats
+            array = []
+            values = value.split(',')
+            for v in values:
+                array.append(self.value_type.validate(v))
+            return array
+        elif not isinstance(value, list):
+            raise ValueError('not a list')
         # Make sure that all elements in the list are lists or tuples of
         # length tuple_length and each of the values if of the specified
         # attribute type. Also ensure that all tuples are of the same length
@@ -232,16 +243,15 @@ class ArrayType(AttributeType):
         common_length = -1
         for t in value:
             if not isinstance(t, list) and not isinstance(t, tuple):
-                return False
+                raise ValueError('element is not a list')
             if common_length == -1:
                 common_length = len(t)
             elif len(t) != common_length:
-                return False
+                raise ValueError('element is not of expected length')
             for v in t:
-                if not self.value_type.validate(v):
-                    return False
+                self.value_type.validate(v)
         # Return True if all tests where passed successfully
-        return True
+        return value
 
 
 class FloatType(AttributeType):
@@ -256,7 +266,12 @@ class FloatType(AttributeType):
         """Override AttributeType.validate. Check if the given value is an
         instance of type float.
         """
-        return isinstance(value, float) or isinstance(value, int)
+        if isinstance(value, float) or isinstance(value, int):
+            return value
+        elif isinstance(value, basestring):
+            return float(value)
+        else:
+            raise ValueError('not a float')
 
 
 class IntegerType(AttributeType):
@@ -271,7 +286,12 @@ class IntegerType(AttributeType):
         """Override AttributeType.validate. Check if the given value is an
         instance of type int.
         """
-        return isinstance(value, int)
+        if isinstance(value, int):
+            return value
+        elif isinstance(value, basestring):
+            return int(value)
+        else:
+            raise ValueError('not a float')
 
 
 # ------------------------------------------------------------------------------
@@ -305,9 +325,15 @@ def get_and_validate_attributes(attributes, attr_defs):
         if not attr.name in attr_defs:
             raise ValueError('unknown attribute: ' + attr.name)
         attr_def = attr_defs[attr.name]
-        if not attr_def.validate(attr.value):
+        # Only add attribute if value is not empty
+        if isinstance(attr.value, basestring):
+            if attr.value == '':
+                continue
+        try:
+            attr_val = attr_def.validate(attr.value)
+        except ValueError as ex:
             raise ValueError('invalid value for attribute: ' + attr.name)
-        options[attr.name] = attr
+        options[attr.name] = Attribute(attr.name, attr_val)
     return options
 
 

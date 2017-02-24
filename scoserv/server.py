@@ -1,4 +1,5 @@
 #!venv/bin/python
+import json
 import os
 import shutil
 import tempfile
@@ -24,18 +25,19 @@ import serialize
 
 # App Path and Url
 APP_PATH = '/sco-server/api/v1'
-SERVER_URL = 'http://localhost'
-SERVER_PORT = 5050
+SERVER_URL = 'http://cds-swg1.cims.nyu.edu'
+SERVER_PORT = 5000
 BASE_URL = SERVER_URL + ':' + str(SERVER_PORT) + APP_PATH + '/'
 # Flag to switch debugging on/off
 DEBUG = True
+# Service description file (JSON)
+SERVICE_DESCRIPTION_FILE = './service.json'
 # Local folder for data files
 DATA_DIR = os.path.abspath('../resources/data')
 # Local folder for SCO subject files
 ENV_DIR = os.path.abspath('../resources/env/subjects')
 # Log file
 LOG_FILE = os.path.abspath(DATA_DIR + 'scoserv.log')
-
 
 # ------------------------------------------------------------------------------
 # Initialization
@@ -46,7 +48,6 @@ app = Flask(__name__)
 app.config['APPLICATION_ROOT'] = APP_PATH
 app.config['DEBUG'] = DEBUG
 CORS(app)
-
 # Instantiate the Standard Cortical Observer Data Store.
 db = db.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
 # Instantiate the SCO weorklow engine
@@ -54,7 +55,9 @@ engine = wf.SCOEngine(mongo.MongoDBFactory(), DATA_DIR, ENV_DIR)
 # Serializer for resources. Serializer follows REST architecture constraint to
 # include hypermedia links with responses.
 serializer = serialize.JsonWebAPISerializer(BASE_URL)
-
+# Read service description from file
+with open(SERVICE_DESCRIPTION_FILE, 'r') as f:
+     service = json.load(f)
 
 # ------------------------------------------------------------------------------
 # Constants
@@ -76,7 +79,7 @@ def index():
     of references to various resources.
     """
     return jsonify(
-        serializer.service_description('Standard Cortical Observer - Web API')
+        serializer.service_description(service['name'], service['descriptors'])
     )
 
 
@@ -313,7 +316,10 @@ def experiments_predictions_get(experiment_id, prediction_id):
         raise ResourceNotFound(experiment_id + ':' + prediction_id)
     else:
         # Return Json serialization of object.
-        return jsonify(serializer.experiment_prediction_to_json(prediction))
+        return jsonify(serializer.experiment_prediction_to_json(
+            prediction,
+            db.experiments_get(experiment_id)
+        ))
 
 
 @app.route('/experiments/<string:experiment_id>/predictions', methods=['POST'])
