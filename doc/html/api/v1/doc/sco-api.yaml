@@ -10,7 +10,7 @@ info:
 
 schemes:
   - http
-host: cds-swg1.cims.nyu.edu:5000
+host: cds-swg1.cims.nyu.edu
 basePath: /sco-server/api/v1
 
 paths:

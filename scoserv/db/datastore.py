@@ -323,7 +323,7 @@ class ObjectStore(object):
         ----------
         identifier : string
             Unique object identifier
-        erase : Boolean, optinal
+        erase : Boolean, optional
             If true, the record will be deleted from the database. Otherwise,
             the active flag will be set to False to support provenance tracking.
 

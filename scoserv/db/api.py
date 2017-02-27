@@ -358,7 +358,7 @@ class SCODataStore(object):
             properties=properties
         )
 
-    def experiments_predictions_delete(self, experiment, prediction):
+    def experiments_predictions_delete(self, experiment, prediction, erase=False):
         """Delete given prediction for experiment.
 
         Parameters
@@ -367,6 +367,10 @@ class SCODataStore(object):
             Unique experiment identifier
         prediction : string
             Unique prediction identifier
+        erase : Boolean, optional
+            If true, the model run will be deleted from the database. Used in
+            case the sco backend could not start a model run after the record
+            had already been created in the database.
 
         Returns
         -------
@@ -379,7 +383,7 @@ class SCODataStore(object):
             return None
         # Return resutl of deleting model run. Could also raise exception in
         # case of invalid database state (i.e., prediction does not exist)
-        return self.predictions.delete_object(model_run.identifier)
+        return self.predictions.delete_object(model_run.identifier, erase=erase)
 
     def experiments_predictions_download(self, experiment, prediction):
         """Donwload the results of a prediction for a given experiment.

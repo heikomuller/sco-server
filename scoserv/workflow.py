@@ -1,102 +1,56 @@
-"""Standard Cortical Observer - Workflow Engine API. The main inteface to run
-predictive models for experiments that are defined in the SCO Data Store.
-"""
-from multiprocessing import Process
+"""Implements the run SCO model workflow for a given user request."""
+
 import os
 import shutil
 import tarfile
 import tempfile
 
-import db.api as api
 import db.prediction as runs
+from db.api import SCODataStore
+from engine import REQUEST_EXPERIMENT_ID, REQUEST_RUN_ID
+from mongo import MongoDBFactory
+from server import DATA_DIR, ENV_DIR
 
 from neuropythy.freesurfer import add_subject_path
 import sco
 
-
 # ------------------------------------------------------------------------------
 #
-# Engine
-#
-# ------------------------------------------------------------------------------
-
-class SCOEngine(object):
-    """Implementation of a workflow engine that allows to run prodictive models
-    using resources that are managed by the SCO Data Store. This simple
-    implementation currently provides a single method to run the default
-    predictive model.
-    """
-    def __init__(self, mongo, db_dir, env_dir):
-        """Initialize the engine with database factory and references to data
-        directories. The engine executes models using multi-processing and
-        therefore needs to instantiate a new SCO data store for each process.
-        This is also the palce where we currently set the path to the Freesurfer
-        subject directory.
-
-        Parameters
-        ----------
-        mongo : mongo.MongoDBFactory()
-            MongoDB database object factory
-        db_dir : string
-            The directory for storing data files. Directory will be created
-            if it does not exist. For different types of objects various
-            sub-directories will also be created if they don't exist.
-        env_dir : string
-            Absolute path to Freesurfer sugject directory
-        """
-        self.mongo = mongo
-        self.db_dir = db_dir
-        add_subject_path(env_dir)
-
-    def run_model(self, model_run):
-        """Execute the predictive model for resources defined by the given
-        model run.
-
-        Parameters
-        ----------
-        model_run : ModelRunHandle
-            Handle to model run
-        """
-        # Start a new thread to execute the model run
-        Process(target=run_sco, args=(self.mongo, self.db_dir, model_run)).start()
-
-
-# ------------------------------------------------------------------------------
-#
-# Helper methods
+# Run SCO predictive model
 #
 # ------------------------------------------------------------------------------
 
-def run_sco(mongo, db_dir, model_run):
-    """Execute the default SCO predictive model for a given experiment.
-
-    Raises ValueError if run is not in idle state.
+def sco_run(request):
+    """Run SCO model for given request. Expects a Json object containing run
+    and experiment identifier.
 
     Parameters
     ----------
-    mongo : mongo.MongoDBFactory()
-        MongoDB database object factory
-    db_dir : string
-        The directory for storing data files. Directory will be created
-        if it does not exist. For different types of objects various
-        sub-directories will also be created if they don't exist.
-    model_run : ModelRunHandle
-        Handle to model run
+    request : Json object
+        Object containing run and experiment identifier
     """
-    # Raise exception if run is not in idle state
-    if not model_run.state.is_idle:
-        raise ValueError('invalid run state')
-
+    # Get identifier for run and experiment from request object
+    experiment_id = request[REQUEST_EXPERIMENT_ID]
+    run_id = request[REQUEST_RUN_ID]
     # Create instance of the SCO Data Store for the new process
-    db = api.SCODataStore(mongo, db_dir)
-
-    # Set run state to running
-    db.experiments_predictions_update_state(
-        model_run.experiment,
-        model_run.identifier,
-        runs.ModelRunActive()
-    )
-
+    add_subject_path(ENV_DIR)
+    db = SCODataStore(MongoDBFactory(), DATA_DIR)
+    # Get model run handler from database. Raise exception if not in state IDLE
+    # or RUNNING (the latter may have been caused by the worker failing before).
+    try:
+        model_run = db.experiments_predictions_get(experiment_id, run_id)
+        if model_run is None:
+            raise ValueError('unknown model run: ' +run_id + ':' + experiment_id)
+        if not (model_run.state.is_idle or model_run.state.is_running):
+            raise ValueError('invalid run state: ' + model_run.state)
+    except ValueError as ex:
+        # In case of an exception set run state to failed and return
+        db.experiments_predictions_update_state(
+            model_run.experiment,
+            model_run.identifier,
+            runs.ModelRunFailed(errors=[str(ex)])
+        )
+        return
     try:
         # Get experiment. Raise exception if experiment does not exist.
         experiment = db.experiments_get(model_run.experiment)
@@ -118,7 +72,6 @@ def run_sco(mongo, db_dir, model_run):
             runs.ModelRunFailed(errors=[str(ex)])
         )
         return
-
     # Compose run arguments
     # Get options
     opts = {}
@@ -132,7 +85,12 @@ def run_sco(mongo, db_dir, model_run):
     subject_dir = subject.data_directory
     # Create list of image files
     image_files = [img.filename for img in image_group.images]
-
+    # Set run state to running
+    db.experiments_predictions_update_state(
+        model_run.experiment,
+        model_run.identifier,
+        runs.ModelRunActive()
+    )
     # Run model inside a generic try/except block to ensure that we catch all
     # exceptions and set run state to fail if necessary
     try:
@@ -167,7 +125,6 @@ def run_sco(mongo, db_dir, model_run):
             runs.ModelRunFailed(errors=[type(ex).__name__ + ': ' + str(ex)])
         )
         return
-
     # Update run state to success
     db.experiments_predictions_update_state(
         model_run.experiment,

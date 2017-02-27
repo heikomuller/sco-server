@@ -11,7 +11,8 @@ from werkzeug.utils import secure_filename
 import db.api
 import db.attribute as attribute
 import db.datastore as datastore
-import engine as wf
+import engine.rabbitmq_client as wf
+from engine import EngineException
 import hateoas
 import mongo
 import serialize
@@ -51,7 +52,7 @@ CORS(app)
 # Instantiate the Standard Cortical Observer Data Store.
 db = db.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
 # Instantiate the SCO weorklow engine
-engine = wf.SCOEngine(mongo.MongoDBFactory(), DATA_DIR, ENV_DIR)
+engine = wf.RabbitMQClient()
 # Serializer for resources. Serializer follows REST architecture constraint to
 # include hypermedia links with responses.
 serializer = serialize.JsonWebAPISerializer(BASE_URL)
@@ -351,7 +352,16 @@ def experiments_predictions_create(experiment_id):
     if model_run is None:
         raise ResourceNotFound(experiment_id)
     # Start the model run
-    engine.run_model(model_run)
+    try:
+        engine.run_model(model_run)
+    except EngineException as ex:
+        # Delete model run from database if running the model failed.
+        db.experiments_predictions_delete(
+            model_run.experiment,
+            model_run.identifier,
+            erase=True
+        )
+        raise APIRequestException(ex.message, ex.status_code)
     # Return result including list of references for new model run.
     return jsonify(serializer.response_success(model_run)), 201
 

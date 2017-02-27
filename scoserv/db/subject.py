@@ -4,7 +4,7 @@ anatomy files on local disk.
 """
 
 import datetime
-import neuropythy as neuro
+from neuropythy import freesurfer_subject
 import os
 import shutil
 import tarfile
@@ -322,7 +322,7 @@ def get_freesurfer_dir(directory):
     if 'surf' in dir_files and 'mri' in dir_files:
         # Use neuropythy's freesurfer_subject method to test whether the
         # directory is actually a freesurfer subject directoy
-        if not neuro.freesurfer_subject(directory) is None:
+        if not freesurfer_subject(directory) is None:
             return directory
     # Directory is not a valid freesurfer directory. Continue to search
     # recursively until a matching directory is found.
