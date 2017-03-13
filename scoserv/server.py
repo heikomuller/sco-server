@@ -8,13 +8,14 @@ from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-import db.api
-import db.attribute as attribute
-import db.datastore as datastore
-import engine.rabbitmq_client as wf
+import scodata.api
+import scodata.attribute as attribute
+import scodata.datastore as datastore
+import scodata.prediction as prediction
+import scodata.mongo as mongo
 from engine import EngineException
+from engine import RabbitMQClient
 import hateoas
-import mongo
 import serialize
 
 
@@ -50,9 +51,14 @@ app.config['APPLICATION_ROOT'] = APP_PATH
 app.config['DEBUG'] = DEBUG
 CORS(app)
 # Instantiate the Standard Cortical Observer Data Store.
-db = db.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
-# Instantiate the SCO weorklow engine
-engine = wf.RabbitMQClient()
+db = scodata.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
+# Instantiate the SCO workflow engine. By default, we use the RabbitMQ engine
+# implementation
+engine = RabbitMQClient(
+    'localhost',
+    'sco',
+    hateoas.HATEOASReferenceFactory(BASE_URL)
+)
 # Serializer for resources. Serializer follows REST architecture constraint to
 # include hypermedia links with responses.
 serializer = serialize.JsonWebAPISerializer(BASE_URL)
@@ -412,6 +418,35 @@ def experiments_predictions_upsert_property(experiment_id, prediction_id):
             experiment_id,
             prediction_id,
             properties)
+        if result is None:
+            raise ResourceNotFound(prediction_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state', methods=['POST'])
+def experiments_predictions_update_state(experiment_id, prediction_id):
+    """Update run state (POST) - Update the state of an existing model run."""
+    # Get state object from request
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    if not 'type' in json_obj:
+        raise InvalidRequest('missing element: type')
+    state = prediction.ModelRunState.from_json(json_obj)
+    if state is None:
+        raise InvalidRequest('invalid state object')
+    # Update state. If result is None (i.e., experiment of model run does not
+    # exists) return 404. Otherwise, return 200. If a ValueError is raised the
+    # intended update violates a valid model run time line.
+    try:
+        result = db.experiments_predictions_update_state(
+            experiment_id,
+            prediction_id,
+            state
+        )
         if result is None:
             raise ResourceNotFound(prediction_id)
         else:

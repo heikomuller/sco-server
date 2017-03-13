@@ -10,7 +10,7 @@ info:
 
 schemes:
   - http
-host: cds-swg1.cims.nyu.edu
+host: cds-swg1.cims.nyu.edu:5000
 basePath: /sco-server/api/v1
 
 paths:
@@ -513,6 +513,38 @@ paths:
                     description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
+                404:
+                    description: Unknown experiment or prediction
+    /experiments/{experimentId}/predictions/{predictionId}/state:
+        post:
+            summary: Update run state
+            description: Update state of a predictive model run
+            operationId: updateExperimentPredictionState
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: state
+                  in: body
+                  required: true
+                  description: New model run state
+                  schema:
+                      $ref: "#/definitions/RunState"
+            responses:
+                200:
+                    description: State updated
+                400:
+                    description: Invalid state update attempt
                 404:
                     description: Unknown experiment or prediction
     /images/files:
@@ -1209,6 +1241,19 @@ definitions:
             rel:
                 type: string
             href:
+                type: string
+    RunState:
+        type: object
+        required:
+            - type
+        properties:
+            type:
+                type: string
+            errors:
+                type: array
+                items:
+                    type: string
+            modelOutput:
                 type: string
     UpsertProperties:
         type: array

@@ -7,13 +7,13 @@ sys.path.insert(0, os.path.abspath('..'))
 import scoserv.hateoas as hateoas
 import scoserv.serialize as serialize
 import scoserv.utils as utils
-import scoserv.db.attribute as attr
-import scoserv.db.datastore as ds
-import scoserv.db.experiment as experiment
-import scoserv.db.funcdata as funcdata
-import scoserv.db.image as image
-import scoserv.db.prediction as runs
-import scoserv.db.subject as subject
+import scodata.attribute as attr
+import scodata.datastore as ds
+import scodata.experiment as experiment
+import scodata.funcdata as funcdata
+import scodata.image as image
+import scodata.prediction as runs
+import scodata.subject as subject
 
 
 BASE_URL = ':url:'
@@ -200,14 +200,20 @@ class TestJsonSerializer(unittest.TestCase):
 
     def test_experiment_prediction_serialization(self):
         """Test serialization of image file objects."""
+        e = experiment.ExperimentHandle(
+            OBJECT_ID,
+            {ds.PROPERTY_NAME: OBJECT_NAME},
+            'SUBJECT_ID',
+            'IMAGES_ID'
+        )
         mr = runs.ModelRunHandle(
             OBJECT_ID,
             {ds.PROPERTY_NAME: OBJECT_NAME},
             runs.ModelRunIdle(),
-            'EXPERIMENT_ID',
+            e.identifier,
             {'normalized_pixels_per_degree': attr.Attribute('normalized_pixels_per_degree', 0.88)}
         )
-        json = self.serializer.experiment_prediction_to_json(mr)
+        json = self.serializer.experiment_prediction_to_json(mr, e)
         # Ensure all basic elements are present
         self.assertTrue('id' in json)
         self.assertTrue('timestamp' in json)
@@ -235,7 +241,7 @@ class TestJsonSerializer(unittest.TestCase):
         # Ensure experiment is represented properly
         self.assertTrue('id' in json['experiment'])
         self.assertTrue('links' in json['experiment'])
-        self.assertEqual(len(json['experiment']), 2)
+        self.assertEqual(len(json['experiment']), 3)
         # Ensure experiment self reference is given
         links = utils.from_list(json['experiment']['links'], label_key=hateoas.LIST_KEY, label_value=hateoas.LIST_VALUE)
         self.assertTrue(hateoas.REF_KEY_SELF in links)
@@ -244,12 +250,12 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 3)
-        self_ref = '/'.join([BASE_URL, hateoas.URL_KEY_EXPERIMENTS, 'EXPERIMENT_ID', hateoas.URL_KEY_PREDICTIONS, OBJECT_ID])
+        self.assertEqual(len(links), 4)
+        self_ref = '/'.join([BASE_URL, hateoas.URL_KEY_EXPERIMENTS, 'oid', hateoas.URL_KEY_PREDICTIONS, OBJECT_ID])
         self.assertEqual(links[hateoas.REF_KEY_SELF ], self_ref)
         # Check serialization for active run
         mr.state = runs.ModelRunActive()
-        json = self.serializer.experiment_prediction_to_json(mr)
+        json = self.serializer.experiment_prediction_to_json(mr, e)
         # Ensure all basic elements are present
         self.assertTrue('id' in json)
         self.assertTrue('timestamp' in json)
@@ -268,10 +274,10 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 3)
+        self.assertEqual(len(links), 4)
         # Check serialization for error run
         mr.state = runs.ModelRunFailed(['E1', 'E2'])
-        json = self.serializer.experiment_prediction_to_json(mr)
+        json = self.serializer.experiment_prediction_to_json(mr, e)
         # Ensure all basic elements are present
         self.assertTrue('id' in json)
         self.assertTrue('timestamp' in json)
@@ -293,10 +299,10 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 3)
+        self.assertEqual(len(links), 4)
         # Check serialization for error run
         mr.state = runs.ModelRunSuccess('OUTPUT')
-        json = self.serializer.experiment_prediction_to_json(mr)
+        json = self.serializer.experiment_prediction_to_json(mr, e)
         # Ensure all basic elements are present
         self.assertTrue('id' in json)
         self.assertTrue('timestamp' in json)
@@ -316,7 +322,7 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_DOWNLOAD in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 4)
+        self.assertEqual(len(links), 5)
 
     def test_group_images_listing_references(self):
         # Create set of 2 item

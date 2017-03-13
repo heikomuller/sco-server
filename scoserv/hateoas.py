@@ -57,6 +57,8 @@ REF_KEY_SELF = 'self'
 REF_KEY_UPDATE_OPTIONS = 'options'
 # Upsert object property
 REF_KEY_UPSERT_PROPERTY = 'properties'
+# Update model run state
+REF_KEY_UPDATE_STATE = "state"
 
 # Listing pagination navigators
 
@@ -113,7 +115,8 @@ URL_SUFFIX_IMAGES = 'images'
 URL_SUFFIX_OPTIONS = 'options'
 # Url suffix for references to upsert object properties
 URL_SUFFIX_PROPERTIES = 'properties'
-
+# Url suffux for references to update model run state
+URL_SUFFIX_UPDATE_STATE = 'state'
 
 # ------------------------------------------------------------------------------
 #
@@ -275,6 +278,26 @@ class HATEOASReferenceFactory:
         experiment_url = self.experiment_reference(experiment_id)
         return experiment_url + '/' + URL_KEY_FMRI
 
+    def experiments_prediction_reference(self, experiment_id, run_id):
+        """Url for individual model run. Model runs are weak entities and
+        therefore require the experiment identifier together with the run
+        identifier.
+
+        Parameters
+        ----------
+        experiment_id : string
+            Unique experiment identifier
+        run_id : string
+            Uique model run identifier
+
+        Returns
+        -------
+        string
+            Model run object Url
+        """
+        base_url = self.experiments_predictions_reference(experiment_id)
+        return base_url + '/' + run_id
+
     def experiments_predictions_reference(self, experiment_id):
         """Base Url for experiments model runs. Model runs are weak entities.
         Their Urls are prefixed by the identifying experiment Url.
@@ -417,11 +440,17 @@ class HATEOASReferenceFactory:
             return to_references(base_reference_set(self_ref))
         elif obj.is_model_run:
             # Get base references.
-            type_url = self.experiments_predictions_reference(obj.experiment)
-            refs = base_reference_set(type_url + '/' + obj.identifier)
+            refs = base_reference_set(
+                self.experiments_prediction_reference(
+                    obj.experiment,
+                    obj.identifier
+                )
+            )
             # Remove download link if model run is not in SUCCESS state
             if not obj.state.is_success:
                 del refs[REF_KEY_DOWNLOAD]
+            # Add update state link
+            refs[REF_KEY_UPDATE_STATE] = refs[REF_KEY_SELF] + '/' + URL_SUFFIX_UPDATE_STATE
             # Return reference list
             return to_references(refs)
         elif obj.is_image:
