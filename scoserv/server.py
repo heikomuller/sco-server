@@ -13,8 +13,8 @@ import scodata.attribute as attribute
 import scodata.datastore as datastore
 import scodata.prediction as prediction
 import scodata.mongo as mongo
-from engine import EngineException
-from engine import RabbitMQClient
+from scoengine import EngineException
+from scoengine import RabbitMQClient
 import hateoas
 import serialize
 
