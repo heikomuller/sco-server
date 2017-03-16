@@ -515,11 +515,37 @@ paths:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown experiment or prediction
-    /experiments/{experimentId}/predictions/{predictionId}/state:
+    /experiments/{experimentId}/predictions/{predictionId}/state/active:
         post:
-            summary: Update run state
-            description: Update state of a predictive model run
-            operationId: updateExperimentPredictionState
+            summary: Run state active
+            description: Update state of a predictive model run to active
+            operationId: updateExperimentPredictionStateActive
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+            responses:
+                200:
+                    description: State updated
+                400:
+                    description: Invalid state update attempt
+                404:
+                    description: Unknown experiment or prediction
+    /experiments/{experimentId}/predictions/{predictionId}/state/error:
+        post:
+            summary: Run state failed
+            description: Update state of a predictive model run to failed
+            operationId: updateExperimentPredictionStateFailed
             tags:
                 - experiment
                 - prediction
@@ -537,9 +563,50 @@ paths:
                 - name: state
                   in: body
                   required: true
-                  description: New model run state
+                  description: Error messages for failed state
                   schema:
-                      $ref: "#/definitions/RunState"
+
+                      type: object
+                      required:
+                          - errors
+                      properties:
+                          errors:
+                              type: array
+                              items:
+                                  type: string
+            responses:
+                200:
+                    description: State updated
+                400:
+                    description: Invalid state update attempt
+                404:
+                    description: Unknown experiment or prediction
+    /experiments/{experimentId}/predictions/{predictionId}/state/success:
+        post:
+            summary: Run state success
+            description: Update state of a predictive model run success and upload run results
+            operationId: updateExperimentPredictionStateSuccess
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: file
+                  in: formData
+                  required: true
+                  description: Model run result file
+                  type: file
+            consumes:
+                - multipart/form-data
             responses:
                 200:
                     description: State updated

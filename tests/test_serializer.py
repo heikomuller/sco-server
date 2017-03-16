@@ -250,7 +250,7 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 4)
+        self.assertEqual(len(links), 6)
         self_ref = '/'.join([BASE_URL, hateoas.URL_KEY_EXPERIMENTS, 'oid', hateoas.URL_KEY_PREDICTIONS, OBJECT_ID])
         self.assertEqual(links[hateoas.REF_KEY_SELF ], self_ref)
         # Check serialization for active run
@@ -274,7 +274,7 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 4)
+        self.assertEqual(len(links), 6)
         # Check serialization for error run
         mr.state = runs.ModelRunFailed(['E1', 'E2'])
         json = self.serializer.experiment_prediction_to_json(mr, e)
@@ -299,7 +299,7 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_SELF in links)
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 4)
+        self.assertEqual(len(links), 6)
         # Check serialization for error run
         mr.state = runs.ModelRunSuccess('OUTPUT')
         json = self.serializer.experiment_prediction_to_json(mr, e)
@@ -322,7 +322,7 @@ class TestJsonSerializer(unittest.TestCase):
         self.assertTrue(hateoas.REF_KEY_DELETE in links)
         self.assertTrue(hateoas.REF_KEY_DOWNLOAD in links)
         self.assertTrue(hateoas.REF_KEY_UPSERT_PROPERTY in links)
-        self.assertEqual(len(links), 5)
+        self.assertEqual(len(links), 7)
 
     def test_group_images_listing_references(self):
         # Create set of 2 item

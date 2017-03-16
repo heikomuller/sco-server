@@ -11,12 +11,12 @@ from werkzeug.utils import secure_filename
 import scodata.api
 import scodata.attribute as attribute
 import scodata.datastore as datastore
-import scodata.prediction as prediction
 import scodata.mongo as mongo
 from scoengine import EngineException
 from scoengine import RabbitMQClient
 import hateoas
 import serialize
+import utils
 
 
 # -----------------------------------------------------------------------------
@@ -25,21 +25,49 @@ import serialize
 #
 # -----------------------------------------------------------------------------
 
+# Expects a server config file in the local directory. The config file is
+# expected to contain values for all server configuration parameter. These
+# parameters are:
+#
+# server.apppath : Application path part of the Url to access the app
+# server.url : Base Url of the server where the app is running
+# server.port: Port the server is running on
+# server.descriptionfile : Description (.json) file for app
+# server.datadir : Path to base directory for data store
+# server.envdir : Path to directory containing the average subject
+# server.logfile : Path to server log file
+#
+# Configure RabbitMQ publisher to communicate with workers
+#
+# rabbitmq.host : Host running RabbitMQ server
+# rabbitmq.port : Port RabbitMQ server is running on
+# rabbitmq.queue : Queue for communication with workers
+# rabbitmq.user : RabbitMQ user name
+# rabbitmq.password : RabbitMQ user password
+#
+# The file is expected to contain a Json array with key, value pair objects
+# for each parameter
+with open('server.cfg', 'r') as f:
+    config = utils.from_list(json.load(f))
+
 # App Path and Url
-APP_PATH = '/sco-server/api/v1'
-SERVER_URL = 'http://cds-swg1.cims.nyu.edu'
-SERVER_PORT = 5000
-BASE_URL = SERVER_URL + ':' + str(SERVER_PORT) + APP_PATH + '/'
+APP_PATH = config['server.apppath']
+SERVER_URL = config['server.url']
+SERVER_PORT = config['server.port']
+BASE_URL = SERVER_URL
+if SERVER_PORT != 80:
+    BASE_URL += ':' + str(SERVER_PORT)
+BASE_URL += APP_PATH + '/'
 # Flag to switch debugging on/off
 DEBUG = True
 # Service description file (JSON)
-SERVICE_DESCRIPTION_FILE = './service.json'
+SERVICE_DESCRIPTION_FILE = os.path.abspath(config['server.descriptionfile'])
 # Local folder for data files
-DATA_DIR = os.path.abspath('../resources/data')
+DATA_DIR = os.path.abspath(config['server.datadir'])
 # Local folder for SCO subject files
-ENV_DIR = os.path.abspath('../resources/env/subjects')
+ENV_DIR = os.path.abspath(config['server.envdir'])
 # Log file
-LOG_FILE = os.path.abspath(DATA_DIR + 'scoserv.log')
+LOG_FILE = os.path.abspath(config['server.logfile'])
 
 # ------------------------------------------------------------------------------
 # Initialization
@@ -55,9 +83,12 @@ db = scodata.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
 # Instantiate the SCO workflow engine. By default, we use the RabbitMQ engine
 # implementation
 engine = RabbitMQClient(
-    'localhost',
-    'sco',
-    hateoas.HATEOASReferenceFactory(BASE_URL)
+    host=config['rabbitmq.host'],
+    port=config['rabbitmq.port'],
+    queue=config['rabbitmq.queue'],
+    user=config['rabbitmq.user'],
+    password=config['rabbitmq.password'],
+    reference_factory=hateoas.HATEOASReferenceFactory(BASE_URL)
 )
 # Serializer for resources. Serializer follows REST architecture constraint to
 # include hypermedia links with responses.
@@ -426,26 +457,17 @@ def experiments_predictions_upsert_property(experiment_id, prediction_id):
         raise InvalidRequest(str(ex))
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state', methods=['POST'])
-def experiments_predictions_update_state(experiment_id, prediction_id):
-    """Update run state (POST) - Update the state of an existing model run."""
-    # Get state object from request
-    if not request.json:
-        raise InvalidRequest('not a valid Json object in request body')
-    json_obj = request.json
-    if not 'type' in json_obj:
-        raise InvalidRequest('missing element: type')
-    state = prediction.ModelRunState.from_json(json_obj)
-    if state is None:
-        raise InvalidRequest('invalid state object')
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state/active', methods=['POST'])
+def experiments_predictions_update_state_active(experiment_id, prediction_id):
+    """Update run state (POST) - Update the state of an existing model run
+    to active. Does not expect a request body"""
     # Update state. If result is None (i.e., experiment of model run does not
     # exists) return 404. Otherwise, return 200. If a ValueError is raised the
     # intended update violates a valid model run time line.
     try:
-        result = db.experiments_predictions_update_state(
+        result = db.experiments_predictions_update_state_active(
             experiment_id,
-            prediction_id,
-            state
+            prediction_id
         )
         if result is None:
             raise ResourceNotFound(prediction_id)
@@ -453,6 +475,59 @@ def experiments_predictions_update_state(experiment_id, prediction_id):
             return '', 200
     except ValueError as ex:
         raise InvalidRequest(str(ex))
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state/error', methods=['POST'])
+def experiments_predictions_update_state_error(experiment_id, prediction_id):
+    """Update run state (POST) - Update the state of an existing model run to
+    failed. Expects a list of error messages in the request body."""
+    # Get state object from request
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    if not 'errors' in json_obj:
+        raise InvalidRequest('missing element: errors')
+    # Update state. If result is None (i.e., experiment of model run does not
+    # exists) return 404. Otherwise, return 200. If a ValueError is raised the
+    # intended update violates a valid model run time line.
+    try:
+        result = db.experiments_predictions_update_state_error(
+            experiment_id,
+            prediction_id,
+            json_obj['errors']
+        )
+        if result is None:
+            raise ResourceNotFound(prediction_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state/success', methods=['POST'])
+def experiments_predictions_update_state_success(experiment_id, prediction_id):
+    """Update run state (POST) - Update the state of an existing model run to
+    success. Expects a result file in the message body."""
+    # Get model result file that is associated with request
+    tmp_dir, upload_file = get_upload_file(request)
+    # Update state. If result is None (i.e., experiment of model run does not
+    # exists) return 404. Otherwise, return 200. If a ValueError is raised the
+    # intended update violates a valid model run time line.
+    try:
+        result = db.experiments_predictions_update_state_success(
+            experiment_id,
+            prediction_id,
+            upload_file
+        )
+        if result is None:
+            shutil.rmtree(tmp_dir)
+            raise ResourceNotFound(prediction_id)
+    except ValueError as ex:
+        shutil.rmtree(tmp_dir)
+        raise InvalidRequest(str(ex))
+    # Clean-up and return success
+    shutil.rmtree(tmp_dir)
+    return '', 200
 
 
 # ------------------------------------------------------------------------------

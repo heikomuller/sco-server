@@ -57,8 +57,10 @@ REF_KEY_SELF = 'self'
 REF_KEY_UPDATE_OPTIONS = 'options'
 # Upsert object property
 REF_KEY_UPSERT_PROPERTY = 'properties'
-# Update model run state
-REF_KEY_UPDATE_STATE = "state"
+# Update model run states
+REF_KEY_UPDATE_STATE_ACTIVE = "state.active"
+REF_KEY_UPDATE_STATE_ERROR = "state.error"
+REF_KEY_UPDATE_STATE_SUCCESS = "state.success"
 
 # Listing pagination navigators
 
@@ -117,6 +119,9 @@ URL_SUFFIX_OPTIONS = 'options'
 URL_SUFFIX_PROPERTIES = 'properties'
 # Url suffux for references to update model run state
 URL_SUFFIX_UPDATE_STATE = 'state'
+URL_SUFFIX_STATE_ACTIVE = 'active'
+URL_SUFFIX_STATE_ERROR = 'error'
+URL_SUFFIX_STATE_SUCCESS = 'success'
 
 # ------------------------------------------------------------------------------
 #
@@ -450,7 +455,21 @@ class HATEOASReferenceFactory:
             if not obj.state.is_success:
                 del refs[REF_KEY_DOWNLOAD]
             # Add update state link
-            refs[REF_KEY_UPDATE_STATE] = refs[REF_KEY_SELF] + '/' + URL_SUFFIX_UPDATE_STATE
+            refs[REF_KEY_UPDATE_STATE_ACTIVE] = '/'.join([
+                refs[REF_KEY_SELF],
+                URL_SUFFIX_UPDATE_STATE,
+                URL_SUFFIX_STATE_ACTIVE
+            ])
+            refs[REF_KEY_UPDATE_STATE_ERROR] = '/'.join([
+                refs[REF_KEY_SELF],
+                URL_SUFFIX_UPDATE_STATE,
+                URL_SUFFIX_STATE_ERROR
+            ])
+            refs[REF_KEY_UPDATE_STATE_SUCCESS] = '/'.join([
+                refs[REF_KEY_SELF],
+                URL_SUFFIX_UPDATE_STATE,
+                URL_SUFFIX_STATE_SUCCESS
+            ])
             # Return reference list
             return to_references(refs)
         elif obj.is_image:
