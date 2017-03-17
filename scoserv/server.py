@@ -8,7 +8,7 @@ from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-import scodata.api
+import scodata
 import scodata.attribute as attribute
 import scodata.datastore as datastore
 import scodata.mongo as mongo
@@ -33,6 +33,8 @@ import utils
 # server.url : Base Url of the server where the app is running
 # server.port: Port the server is running on
 # server.descriptionfile : Description (.json) file for app
+# server.imagegroupparametersfile: File (.json) containing list of image group parameter definitions
+# server.modelsfile : File (.json) containing description of registered models
 # server.datadir : Path to base directory for data store
 # server.envdir : Path to directory containing the average subject
 # server.logfile : Path to server log file
@@ -62,6 +64,10 @@ BASE_URL += APP_PATH + '/'
 DEBUG = True
 # Service description file (JSON)
 SERVICE_DESCRIPTION_FILE = os.path.abspath(config['server.descriptionfile'])
+# Description file for registered models (JSON)
+IMG_GROUP_PARAMETERS_FILE = os.path.abspath(config['server.imagegroupparametersfile'])
+# Description file for registered models (JSON)
+MODELS_DESCRIPTION_FILE = os.path.abspath(config['server.modelsfile'])
 # Local folder for data files
 DATA_DIR = os.path.abspath(config['server.datadir'])
 # Local folder for SCO subject files
@@ -79,7 +85,7 @@ app.config['APPLICATION_ROOT'] = APP_PATH
 app.config['DEBUG'] = DEBUG
 CORS(app)
 # Instantiate the Standard Cortical Observer Data Store.
-db = scodata.api.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
+db = scodata.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
 # Instantiate the SCO workflow engine. By default, we use the RabbitMQ engine
 # implementation
 engine = RabbitMQClient(
@@ -96,6 +102,12 @@ serializer = serialize.JsonWebAPISerializer(BASE_URL)
 # Read service description from file
 with open(SERVICE_DESCRIPTION_FILE, 'r') as f:
      service = json.load(f)
+# Readimage group parameter definitions from file
+with open(IMG_GROUP_PARAMETERS_FILE, 'r') as f:
+     imggrp_parameters = json.load(f)
+# Read models description from file
+with open(MODELS_DESCRIPTION_FILE, 'r') as f:
+     models = json.load(f)
 
 # ------------------------------------------------------------------------------
 # Constants
@@ -117,7 +129,12 @@ def index():
     of references to various resources.
     """
     return jsonify(
-        serializer.service_description(service['name'], service['descriptors'])
+        serializer.service_description(
+            service['name'],
+            service['descriptors'],
+            imggrp_parameters,
+            models
+        )
     )
 
 
@@ -705,7 +722,7 @@ def image_groups_update_options(image_group_id):
     # Convert the Json element associated with key 'options' into a list of
     # typed property instance. Throws an InvalidRequest exception if the format
     # of the element value is invalid.
-    attributes = get_attributes(json_obj['options'])
+    attributes = get_attributes(json_obj['options'], imggrp_parameters)
     # Upsert object options. The result will be None if image group does not
     # exist.
     try:
@@ -932,7 +949,7 @@ class ResourceNotFound(APIRequestException):
 # Method Wrapper's that validate request format and arguments
 # ------------------------------------------------------------------------------
 
-def get_attributes(json_array):
+def get_attributes(json_array, parameter_defs):
     """Transform an Json array of typed attribute values into a list of
     datastore.Attribute objects.
 
@@ -940,16 +957,26 @@ def get_attributes(json_array):
     the element associated with the 'value' key is arbitrary. Raises a
     InvalidRequest exception if the given array violated expected format.
 
+    The list of parameter definitions defines the set valid parameter names .
+    Raises an InvalidRequest exception if a parameter with an invalid name is
+    in the Json array.
+
     Parameters
     ----------
     json_array : array
         List of Json objects ({'name':..., 'value':...})
+    parameter_defs : List(Dictionary)
+        List of parameter definitions
 
     Returns
     -------
     List(Attribute)
         List of typed attribute instances
     """
+    # Create a list of valis parameter names
+    valid_names = {}
+    for para in parameter_defs:
+        valid_names[para['id']] = para
     result = []
     # Make sure the given array is a list
     if not isinstance(json_array, list):
@@ -963,7 +990,12 @@ def get_attributes(json_array):
             if not key in element:
                 raise InvalidRequest('object has not key ' + key)
         name = str(element['name'])
-        value = element['value']
+        if not name in valid_names:
+            raise InvalidRequest('invalid parameter name: ' + name)
+        try:
+            value = attribute.parse_value(element['value'], valid_names[name])
+        except ValueError as ex:
+            raise InvalidRequest(str(ex))
         result.append(attribute.Attribute(name, value))
     return result
 

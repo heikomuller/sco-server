@@ -31,6 +31,8 @@ paths:
                         required:
                             - name
                             - descriptors
+                            - images
+                            - models
                             - links
                         properties:
                             name:
@@ -50,6 +52,19 @@ paths:
                                             type: string
                                         text:
                                             type: string
+                            images:
+                                type: object
+                                required:
+                                    - parameters
+                                properties:
+                                    parameters:
+                                        type: array
+                                        items:
+                                            $ref: "#/definitions/ParameterDefinition"
+                            models:
+                                type: array
+                                items:
+                                    $ref: '#/definitions/ModelDescriptor'
                             links:
                                 type: array
                                 items:
@@ -1227,6 +1242,23 @@ definitions:
                 type: string
             value:
                 type: string
+    ModelDescriptor:
+        type: object
+        required:
+            - id
+            - name
+            - parameters
+        properties:
+            id:
+                type: string
+            name:
+                type: string
+            description:
+                type: string
+            parameters:
+                type: array
+                items:
+                    $ref: '#/definitions/ParameterDefinition'
     ObjectHandle:
         allOf:
             - $ref: "#/definitions/BaseObjectHandle"
@@ -1273,6 +1305,32 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
+    ParameterDefinition:
+        type: object
+        required:
+            - id
+            - name
+            - type
+        properties:
+            id:
+                type: string
+            name:
+                type: string
+            description:
+                type: string
+            type:
+                type: object
+                required:
+                    - name
+                properties:
+                    name:
+                        type: string
+                    values:
+                        type: array
+                        items:
+                            type: string
+            default:
+                type: string
     PredictionHandle:
         allOf:
             - $ref: "#/definitions/ObjectHandle"

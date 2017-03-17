@@ -425,9 +425,10 @@ class JsonWebAPISerializer(object):
             'links': self.refs.object_references(obj)
         }
 
-    def service_description(self, name, descriptors):
+    def service_description(self, name, descriptors, imggrp_parameters, models):
         """Service description containing web service name, textual description
-        of service resources, and a list of references to various resources.
+        of service resources, representation of registered models and their
+        parameters, and a list of references to various resources.
 
         Parameters
         ----------
@@ -435,6 +436,10 @@ class JsonWebAPISerializer(object):
             Descriptive Web service name
         descriptors: Dictionary({'id':string, 'title':string,'text':string})
             Dictionary of descriptions for service components
+        imggrp_parameters : List
+            List containing image group parameter definitions
+        models: List
+            Definition of registered models and their parameters
 
         Returns
         -------
@@ -444,6 +449,8 @@ class JsonWebAPISerializer(object):
         return {
             'name': name,
             'descriptors' : descriptors,
+            'images' : imggrp_parameters,
+            'models' : models,
             'links' : self.refs.service_references()
         }
 

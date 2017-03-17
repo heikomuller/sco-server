@@ -1,0 +1,43 @@
+[
+    {
+        "description": "aperture_radius (default: None)\n\n(images) aperture_radius: Specifies the radius of the aperture in degrees; by default this is None,\n        indicating that no aperture should be used; otherwise the aperture is applied after\n        normalizing the images.",
+        "type": {
+            "name": "float"
+        },
+        "id": "aperture_radius",
+        "name": "aperture_radius"
+    },
+    {
+        "description": "pixels_per_degree\n\n(images) pixels_per_degree: Must specify the number of pixels per degree in the input images; note\n        that all stimulus images must have the same pixels_per_degree value.",
+        "type": {
+            "name": "float"
+        },
+        "id": "pixels_per_degree",
+        "name": "pixels_per_degree"
+    },
+    {
+        "default": 0.5,
+        "description": "background (default: 0.5)\n\n(images) background: Specifies the background color of the stimulus; by default this is 0.5 (gray);\n        this is only used if an aperture is applied.",
+        "type": {
+            "name": "float"
+        },
+        "id": "background",
+        "name": "background"
+    },
+    {
+        "description": "aperture_edge_width (default: None)\n\n(images) aperture_edge_width: Specifies the width of the aperture edge in degrees; by default this is\n        1; if 0, then no aperture edge is used.",
+        "type": {
+            "name": "float"
+        },
+        "id": "aperture_edge_width",
+        "name": "aperture_edge_width"
+    },
+    {
+        "description": "gamma (default: None)\n\n(gamma_correction) gamma: May be given, in which case it must be one of:\n        - an (n x 2) or (2 x n) matrix such that is equivalent to (potentially after transposition)\n          a matrix of (x,y) values where x is the input gamma and y is the corrected gamma\n        - a vector of corrected gamma values; if the vector u is of length n, then this is \n          equivalent to passing a matrix in which the y-values are the elements of u and the\n          x-values are evenly spaced values that cover the interval [0,1]; accordingly there must be\n          at least 2 elements\n        - a function that accepts a number between 0 and 1 and returns the corrected gamma\n        By default this is None, and no gamma correction is applied.\n    ",
+        "type": {
+            "name": "array"
+        },
+        "id": "gamma",
+        "name": "gamma"
+    }
+]

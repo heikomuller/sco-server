@@ -1,0 +1,328 @@
+[
+    {
+        "description": "",
+        "id": "kay13",
+        "parameters": [
+            {
+                "default": [
+                    {
+                        "value": 0.93,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.99,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.99,
+                        "key": 3
+                    }
+                ],
+                "description": "contrast_constants_by_label (default: pmap({1: 0.93, 2: 0.99, 3: 0.99}))\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values are\n        the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "contrast_constants_by_label",
+                "name": "contrast_constants_by_label"
+            },
+            {
+                "default": 7.5,
+                "description": "max_eccentricity (default: 7.5)\n\n(import_retinotopy) max_eccentricity: May specifies the maximum eccentricity value to use.",
+                "type": {
+                    "name": "float"
+                },
+                "id": "max_eccentricity",
+                "name": "max_eccentricity"
+            },
+            {
+                "default": "volume",
+                "description": "modality (default: volume)\n\n(import_retinotopy) modality: May be 'volume' or 'surface' to specify the anatomical modality.",
+                "type": {
+                    "name": "enum",
+                    "values" : ["volume", "surface"]
+                },
+                "id": "modality",
+                "name": "modality"
+            },
+            {
+                "default": [
+                    {
+                        "value": 1,
+                        "key": 1
+                    },
+                    {
+                        "value": 1,
+                        "key": 2
+                    },
+                    {
+                        "value": 1,
+                        "key": 3
+                    }
+                ],
+                "description": "divisive_exponents_by_label (default: pmap({1: 1.0, 2: 1.0, 3: 1.0}))",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "divisive_exponents_by_label",
+                "name": "divisive_exponents_by_label"
+            },
+            {
+                "default": [
+                    {
+                        "value": 0.1,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.15,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.27,
+                        "key": 3
+                    }
+                ],
+                "description": "pRF_sigma_slopes_by_label (default: pmap({1: 0.1, 2: 0.15, 3: 0.27}))",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "pRF_sigma_slopes_by_label",
+                "name": "pRF_sigma_slopes_by_label"
+            },
+            {
+                "default": [
+                    {
+                        "value": 0.18,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.13,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.12,
+                        "key": 3
+                    }
+                ],
+                "description": "compressive_constants_by_label (default: pmap({1: 0.18, 2: 0.13, 3: 0.12}))",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "compressive_constants_by_label",
+                "name": "compressive_constants_by_label"
+            },
+            {
+                "default": 12,
+                "description": "normalized_pixels_per_degree (default: 12)\n\n(images) normalized_pixels_per_degree: Specifies the resolution of the images used in the calculation;\n        by default this is 15.",
+                "type": {
+                    "name": "int"
+                },
+                "id": "normalized_pixels_per_degree",
+                "name": "normalized_pixels_per_degree"
+            },
+            {
+                "default": 8,
+                "description": "gabor_orientations (default: 8)",
+                "type": {
+                    "name": "int"
+                },
+                "id": "gabor_orientations",
+                "name": "gabor_orientations"
+            },
+            {
+                "default": 3.0,
+                "description": "pRF_n_radii (default: 3.0)\n\n(pRFs) pRF_n_radii: May specify how many standard deviations should be included in the\n        Gaussian blob that defines the pRF.",
+                "type": {
+                    "name": "float"
+                },
+                "id": "pRF_n_radii",
+                "name": "pRF_n_radii"
+            },
+            {
+                "default": [
+                    {
+                        "value": 0.5,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.5,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.5,
+                        "key": 3
+                    }
+                ],
+                "description": "saturation_constants_by_label (default: pmap({1: 0.5, 2: 0.5, 3: 0.5}))\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose values are\n        the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "saturation_constants_by_label",
+                "name": "saturation_constants_by_label"
+            }
+        ],
+        "name": "kay13"
+    },
+    {
+        "description": "",
+        "id": "benson17",
+        "parameters": [
+            {
+                "default": [
+                    {
+                        "value": 0.93,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.99,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.99,
+                        "key": 3
+                    }
+                ],
+                "description": "contrast_constants_by_label (default: pmap({1: 0.93, 2: 0.99, 3: 0.99}))\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values are\n        the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "contrast_constants_by_label",
+                "name": "contrast_constants_by_label"
+            },
+            {
+                "default": 12,
+                "description": "max_eccentricity (default: 12)\n\n(import_retinotopy) max_eccentricity: May specifies the maximum eccentricity value to use.",
+                "type": {
+                    "name": "int"
+                },
+                "id": "max_eccentricity",
+                "name": "max_eccentricity"
+            },
+            {
+                "default": "volume",
+                "description": "modality (default: volume)\n\n(import_retinotopy) modality: May be 'volume' or 'surface' to specify the anatomical modality.",
+                "type": {
+                    "name": "enum",
+                    "values" : ["volume", "surface"]
+                },
+                "id": "modality",
+                "name": "modality"
+            },
+            {
+                "default": [
+                    {
+                        "value": 1,
+                        "key": 1
+                    },
+                    {
+                        "value": 1,
+                        "key": 2
+                    },
+                    {
+                        "value": 1,
+                        "key": 3
+                    }
+                ],
+                "description": "divisive_exponents_by_label (default: pmap({1: 1.0, 2: 1.0, 3: 1.0}))",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "divisive_exponents_by_label",
+                "name": "divisive_exponents_by_label"
+            },
+            {
+                "default": [
+                    {
+                        "value": 0.1,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.15,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.27,
+                        "key": 3
+                    }
+                ],
+                "description": "pRF_sigma_slopes_by_label (default: pmap({1: 0.1, 2: 0.15, 3: 0.27}))",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "pRF_sigma_slopes_by_label",
+                "name": "pRF_sigma_slopes_by_label"
+            },
+            {
+                "default": [
+                    {
+                        "value": 0.18,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.13,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.12,
+                        "key": 3
+                    }
+                ],
+                "description": "compressive_constants_by_label (default: pmap({1: 0.18, 2: 0.13, 3: 0.12}))",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "compressive_constants_by_label",
+                "name": "compressive_constants_by_label"
+            },
+            {
+                "default": 12,
+                "description": "normalized_pixels_per_degree (default: 12)\n\n(images) normalized_pixels_per_degree: Specifies the resolution of the images used in the calculation;\n        by default this is 15.",
+                "type": {
+                    "name": "int"
+                },
+                "id": "normalized_pixels_per_degree",
+                "name": "normalized_pixels_per_degree"
+            },
+            {
+                "default": 8,
+                "description": "gabor_orientations (default: 8)",
+                "type": {
+                    "name": "int"
+                },
+                "id": "gabor_orientations",
+                "name": "gabor_orientations"
+            },
+            {
+                "default": 3.0,
+                "description": "pRF_n_radii (default: 3.0)\n\n(pRFs) pRF_n_radii: May specify how many standard deviations should be included in the\n        Gaussian blob that defines the pRF.",
+                "type": {
+                    "name": "float"
+                },
+                "id": "pRF_n_radii",
+                "name": "pRF_n_radii"
+            },
+            {
+                "default": [
+                    {
+                        "value": 0.5,
+                        "key": 1
+                    },
+                    {
+                        "value": 0.5,
+                        "key": 2
+                    },
+                    {
+                        "value": 0.5,
+                        "key": 3
+                    }
+                ],
+                "description": "saturation_constants_by_label (default: pmap({1: 0.5, 2: 0.5, 3: 0.5}))\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose values are\n        the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "type": {
+                    "name": "dict"
+                },
+                "id": "saturation_constants_by_label",
+                "name": "saturation_constants_by_label"
+            }
+        ],
+        "name": "benson17"
+    }
+]
