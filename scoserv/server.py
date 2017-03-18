@@ -387,9 +387,18 @@ def experiments_predictions_create(experiment_id):
         raise InvalidRequest('not a valid Json object in request body')
     json_obj = request.json
     # Make sure that all required keys are present in the given Json object
-    for key in ['name', 'arguments']:
+    for key in ['name', 'model', 'arguments']:
         if not key in json_obj:
             raise InvalidRequest('missing element in Json body: ' + key)
+    # Make sure that the specified model exists
+    model_id = json_obj['model']
+    model = None
+    for element in models:
+        if element['id'] == model_id:
+            model = element
+            break;
+    if model is None:
+        raise InvalidRequest('unknown model: ' + model_id)
     # Get dictionary of properties ifpresent in request
     if 'properties' in json_obj:
         properties = get_properties_list(json_obj['properties'], False)
@@ -398,8 +407,9 @@ def experiments_predictions_create(experiment_id):
     # Call create method of API to get a new model run object handle.
     model_run = db.experiments_predictions_create(
         experiment_id,
+        model_id,
         json_obj['name'],
-        get_attributes(json_obj['arguments']),
+        get_attributes(json_obj['arguments'], model['parameters']),
         properties=properties
     )
     # The result is None if experiment does not exists
@@ -988,7 +998,7 @@ def get_attributes(json_array, parameter_defs):
             raise InvalidRequest('element is not a dictionary')
         for key in ['name', 'value']:
             if not key in element:
-                raise InvalidRequest('object has not key ' + key)
+                raise InvalidRequest('object has no key ' + key + ': ' + str(element))
         name = str(element['name'])
         if not name in valid_names:
             raise InvalidRequest('invalid parameter name: ' + name)

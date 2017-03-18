@@ -18,7 +18,7 @@
                         "key": 3
                     }
                 ],
-                "description": "contrast_constants_by_label (default: pmap({1: 0.93, 2: 0.99, 3: 0.99}))\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values are\n        the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "description": "contrast_constants_by_label (default: {1: 0.93, 2: 0.99, 3: 0.99})\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values\n        are the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
                 },
@@ -59,7 +59,7 @@
                         "key": 3
                     }
                 ],
-                "description": "divisive_exponents_by_label (default: pmap({1: 1.0, 2: 1.0, 3: 1.0}))",
+                "description": "divisive_exponents_by_label (default: {1: 1.0, 2: 1.0, 3: 1.0})",
                 "type": {
                     "name": "dict"
                 },
@@ -81,7 +81,7 @@
                         "key": 3
                     }
                 ],
-                "description": "pRF_sigma_slopes_by_label (default: pmap({1: 0.1, 2: 0.15, 3: 0.27}))",
+                "description": "pRF_sigma_slopes_by_label (default: {1: 0.1, 2: 0.15, 3: 0.27})",
                 "type": {
                     "name": "dict"
                 },
@@ -103,7 +103,7 @@
                         "key": 3
                     }
                 ],
-                "description": "compressive_constants_by_label (default: pmap({1: 0.18, 2: 0.13, 3: 0.12}))",
+                "description": "compressive_constants_by_label (default: {1: 0.18, 2: 0.13, 3: 0.12})",
                 "type": {
                     "name": "dict"
                 },
@@ -152,7 +152,7 @@
                         "key": 3
                     }
                 ],
-                "description": "saturation_constants_by_label (default: pmap({1: 0.5, 2: 0.5, 3: 0.5}))\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose values are\n        the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "description": "saturation_constants_by_label (default: {1: 0.5, 2: 0.5, 3: 0.5})\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose\n        values are the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
                 },
@@ -181,7 +181,7 @@
                         "key": 3
                     }
                 ],
-                "description": "contrast_constants_by_label (default: pmap({1: 0.93, 2: 0.99, 3: 0.99}))\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values are\n        the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "description": "contrast_constants_by_label (default: {1: 0.93, 2: 0.99, 3: 0.99})\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values\n        are the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
                 },
@@ -222,7 +222,7 @@
                         "key": 3
                     }
                 ],
-                "description": "divisive_exponents_by_label (default: pmap({1: 1.0, 2: 1.0, 3: 1.0}))",
+                "description": "divisive_exponents_by_label (default: {1: 1.0, 2: 1.0, 3: 1.0})",
                 "type": {
                     "name": "dict"
                 },
@@ -244,7 +244,7 @@
                         "key": 3
                     }
                 ],
-                "description": "pRF_sigma_slopes_by_label (default: pmap({1: 0.1, 2: 0.15, 3: 0.27}))",
+                "description": "pRF_sigma_slopes_by_label (default: {1: 0.1, 2: 0.15, 3: 0.27})",
                 "type": {
                     "name": "dict"
                 },
@@ -266,7 +266,7 @@
                         "key": 3
                     }
                 ],
-                "description": "compressive_constants_by_label (default: pmap({1: 0.18, 2: 0.13, 3: 0.12}))",
+                "description": "compressive_constants_by_label (default: {1: 0.18, 2: 0.13, 3: 0.12})",
                 "type": {
                     "name": "dict"
                 },
@@ -315,7 +315,7 @@
                         "key": 3
                     }
                 ],
-                "description": "saturation_constants_by_label (default: pmap({1: 0.5, 2: 0.5, 3: 0.5}))\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose values are\n        the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
+                "description": "saturation_constants_by_label (default: {1: 0.5, 2: 0.5, 3: 0.5})\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose\n        values are the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
                 },

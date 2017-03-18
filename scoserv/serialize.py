@@ -116,6 +116,8 @@ class JsonWebAPISerializer(object):
         """
         # Get basic object serialization
         json_obj = self.object_to_json(model_run)
+        # Add model identifier
+        json_obj['model'] =  str(model_run.model_id)
         # Add experiment information
         json_obj['experiment'] = {
             'id' : experiment.identifier,
