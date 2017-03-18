@@ -394,9 +394,12 @@ paths:
                       type: object
                       required:
                           - name
+                          - model
                           - arguments
                       properties:
                           name:
+                              type: string
+                          model:
                               type: string
                           arguments:
                               type: array
@@ -1335,6 +1338,8 @@ definitions:
         allOf:
             - $ref: "#/definitions/ObjectHandle"
             - properties:
+                model:
+                    type: string
                 experiment:
                     type: object
                     required:
