@@ -4,20 +4,11 @@
         "id": "kay13",
         "parameters": [
             {
-                "default": [
-                    {
-                        "value": 0.93,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.99,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.99,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.93,
+                    "2": 0.99,
+                    "3": 0.99
+                },
                 "description": "contrast_constants_by_label (default: {1: 0.93, 2: 0.99, 3: 0.99})\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values\n        are the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
@@ -45,20 +36,11 @@
                 "name": "modality"
             },
             {
-                "default": [
-                    {
-                        "value": 1,
-                        "key": 1
-                    },
-                    {
-                        "value": 1,
-                        "key": 2
-                    },
-                    {
-                        "value": 1,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 1,
+                    "2": 2,
+                    "3": 3
+                },
                 "description": "divisive_exponents_by_label (default: {1: 1.0, 2: 1.0, 3: 1.0})",
                 "type": {
                     "name": "dict"
@@ -67,20 +49,11 @@
                 "name": "divisive_exponents_by_label"
             },
             {
-                "default": [
-                    {
-                        "value": 0.1,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.15,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.27,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.1,
+                    "2": 0.15,
+                    "3": 0.27
+                },
                 "description": "pRF_sigma_slopes_by_label (default: {1: 0.1, 2: 0.15, 3: 0.27})",
                 "type": {
                     "name": "dict"
@@ -89,20 +62,11 @@
                 "name": "pRF_sigma_slopes_by_label"
             },
             {
-                "default": [
-                    {
-                        "value": 0.18,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.13,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.12,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.18,
+                    "2": 0.13,
+                    "3": 0.12
+                },
                 "description": "compressive_constants_by_label (default: {1: 0.18, 2: 0.13, 3: 0.12})",
                 "type": {
                     "name": "dict"
@@ -138,20 +102,11 @@
                 "name": "pRF_n_radii"
             },
             {
-                "default": [
-                    {
-                        "value": 0.5,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.5,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.5,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.5,
+                    "2": 0.5,
+                    "3": 0.5
+                },
                 "description": "saturation_constants_by_label (default: {1: 0.5, 2: 0.5, 3: 0.5})\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose\n        values are the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
@@ -167,20 +122,11 @@
         "id": "benson17",
         "parameters": [
             {
-                "default": [
-                    {
-                        "value": 0.93,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.99,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.99,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.93,
+                    "2": 0.99,
+                    "3": 0.99
+                },
                 "description": "contrast_constants_by_label (default: {1: 0.93, 2: 0.99, 3: 0.99})\n\n(contrast_constants) contrast_constants_by_label: Must be a map whose keys are label values and whose values\n        are the variance-like contrast constant for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
@@ -208,20 +154,11 @@
                 "name": "modality"
             },
             {
-                "default": [
-                    {
-                        "value": 1,
-                        "key": 1
-                    },
-                    {
-                        "value": 1,
-                        "key": 2
-                    },
-                    {
-                        "value": 1,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 1,
+                    "2": 2,
+                    "3": 3
+                },
                 "description": "divisive_exponents_by_label (default: {1: 1.0, 2: 1.0, 3: 1.0})",
                 "type": {
                     "name": "dict"
@@ -230,20 +167,11 @@
                 "name": "divisive_exponents_by_label"
             },
             {
-                "default": [
-                    {
-                        "value": 0.1,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.15,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.27,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.1,
+                    "2": 0.15,
+                    "3": 0.27
+                },
                 "description": "pRF_sigma_slopes_by_label (default: {1: 0.1, 2: 0.15, 3: 0.27})",
                 "type": {
                     "name": "dict"
@@ -252,20 +180,11 @@
                 "name": "pRF_sigma_slopes_by_label"
             },
             {
-                "default": [
-                    {
-                        "value": 0.18,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.13,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.12,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.18,
+                    "2": 0.13,
+                    "3": 0.12
+                },
                 "description": "compressive_constants_by_label (default: {1: 0.18, 2: 0.13, 3: 0.12})",
                 "type": {
                     "name": "dict"
@@ -301,20 +220,11 @@
                 "name": "pRF_n_radii"
             },
             {
-                "default": [
-                    {
-                        "value": 0.5,
-                        "key": 1
-                    },
-                    {
-                        "value": 0.5,
-                        "key": 2
-                    },
-                    {
-                        "value": 0.5,
-                        "key": 3
-                    }
-                ],
+                "default": {
+                    "1": 0.5,
+                    "2": 0.5,
+                    "3": 0.5
+                },
                 "description": "saturation_constants_by_label (default: {1: 0.5, 2: 0.5, 3: 0.5})\n\n(divisive_normalization) saturation_constants_by_label: Must be a map whose keys are label values and whose\n        values are the saturation constant for the particular area; all values appearing in the pRF labels\n        must be found in this map.\n      * divisive_exponents_by_label Must be a map whose keys are label values and whose values are\n        the divisive normalization exponent for that particular area; all values appearing in the\n        pRF labels must be found in this map.",
                 "type": {
                     "name": "dict"
