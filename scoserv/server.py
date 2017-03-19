@@ -85,7 +85,7 @@ app.config['APPLICATION_ROOT'] = APP_PATH
 app.config['DEBUG'] = DEBUG
 CORS(app)
 # Instantiate the Standard Cortical Observer Data Store.
-db = scodata.SCODataStore(mongo.MongoDBFactory(), DATA_DIR)
+db = scodata.SCODataStore(mongo.MongoDBFactory(db_name=config['mongo.db']), DATA_DIR)
 # Instantiate the SCO workflow engine. By default, we use the RabbitMQ engine
 # implementation
 engine = RabbitMQClient(
