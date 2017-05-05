@@ -82,3 +82,12 @@ The following is a listing of references associated with different types of obje
 - images.groups.list
 - subjects.list
 - subjects.upload
+
+### Model Resources
+
+
+Allow mutiple calls to state success. Only first call can and has to contain result file. All following calls may attache additional post processing results.
+
+There are three different type: PREDICTION, IMAGEARCHIVE, and DATAFILE.
+
+### Visualization

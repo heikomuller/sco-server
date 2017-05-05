@@ -17,3 +17,11 @@
 * Read image group parameter and model definitions from files
 * Parser for different types of image group and model run parameter
 * Add model reference to model run
+
+### 0.5.0 - 2017-05-05
+
+* Add model repository to API
+* Move generation of request attribute lists back to sco datastore
+* Add module to load list of models into database
+* Configuration from YAML (default on Web)
+* Add lists of valid attachments and list of widget definitions

@@ -1,9 +1,9 @@
 swagger: "2.0"
 
 info:
-  version: 0.2.0
-  title: Data Store and Model Engine Web API
-  description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store and Predictive Model Engine
+  version: 0.5.0
+  title: Standard Cortical Observer Web API
+  description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store, Model Repository, and Predictive Model Engine
   license:
     name: GNU GPLv3
     url: https://www.gnu.org/licenses/gpl-3.0.en.html
@@ -30,41 +30,43 @@ paths:
                         type: object
                         required:
                             - name
-                            - descriptors
-                            - images
-                            - models
+                            - title
+                            - overview
+                            - resources
                             - links
                         properties:
                             name:
                                 type: string
-                            descriptors:
-                                type: array
-                                items:
-                                    type: object
-                                    required:
-                                        - id
-                                        - title
-                                        - text
-                                    properties:
-                                        id:
-                                            type: string
-                                        title:
-                                            type: string
-                                        text:
-                                            type: string
-                            images:
+                            title:
+                                type: string
+                            overview:
                                 type: object
                                 required:
-                                    - parameters
+                                    - title
+                                    - content
                                 properties:
-                                    parameters:
+                                    title:
+                                        type: string
+                                    content:
+                                        type: string
+                            resources:
+                                type: object
+                                required:
+                                    - imageGroupOptions
+                                    - models
+                                properties:
+                                    imageGroupOptions:
                                         type: array
                                         items:
-                                            $ref: "#/definitions/ParameterDefinition"
-                            models:
-                                type: array
-                                items:
-                                    $ref: '#/definitions/ModelDescriptor'
+                                            $ref: '#/definitions/ParameterDefinition'
+                                    models:
+                                        type: array
+                                        items:
+                                            $ref: '#/definitions/ModelDescriptor'
+                                    widgets:
+                                        type: array
+                                        items:
+                                            $ref: '#/definitions/WidgetDescriptor'
                             links:
                                 type: array
                                 items:
@@ -197,10 +199,6 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
@@ -225,7 +223,7 @@ paths:
                 200:
                     description: Functional MRI data object
                     schema:
-                        $ref: "#/definitions/FMRIHandle"
+                        $ref: "#/definitions/ObjectHandle"
                 404:
                     description: Unknown functional MRI data object
         post:
@@ -277,7 +275,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment or fMRI data object
-    /experiments/{experimentId}/fmr/data:
+    /experiments/{experimentId}/fmri/file:
         get:
             summary: Download fMRI data file
             description: Download original functional MRI data file for object associated with given experiment
@@ -325,10 +323,6 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
@@ -467,7 +461,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment or prediction
-    /experiments/{experimentId}/predictions/{predictionId}/data:
+    /experiments/{experimentId}/predictions/{predictionId}/file:
         get:
             summary: Download prediction result
             description: Download results produced by the predictive model
@@ -525,14 +519,113 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown experiment or prediction
+    /experiments/{experimentId}/predictions/{predictionId}/attachments/{resourceId}:
+        post:
+            summary: Upload model run attachment
+            description: Upload model run post-processing result file
+            operationId: uploadModelRunAttachment
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: resourceId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of resource
+                  type: string
+                - name: file
+                  in: formData
+                  required: true
+                  description: Model run result file
+                  type: file
+            consumes:
+                - multipart/form-data
+            responses:
+                201:
+                    description: Upload successful; object(s) created
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid state update attempt
+                404:
+                    description: Unknown experiment, prediction, or resource
+        delete:
+            summary: Delete model run attachment
+            description: Delete attached post-processing result from model run
+            operationId: deleteModelRunAttachment
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: resourceId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of resource
+                  type: string
+            responses:
+                204:
+                    description: Object deleted
+                404:
+                    description: Unknown experiment, prediction, or resource
+    /experiments/{experimentId}/predictions/{predictionId}/attachments/{resourceId}/file:
+        get:
+            summary: Downlaod model run attachment
+            description: Download file that contains results from a model run post-processing step
+            operationId: downloadModelRunAttachment
+            tags:
+                - experiment
+                - download
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: resourceId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of resource
+                  type: string
+            produces:
+                - text/csv
+                - text/tab-separated-values
+            responses:
+                200:
+                    description: Model run resource file
+                    schema:
+                        type: file
+                404:
+                    description: Unknown experiment, prediction, or resource
     /experiments/{experimentId}/predictions/{predictionId}/state/active:
         post:
             summary: Run state active
@@ -555,6 +648,8 @@ paths:
             responses:
                 200:
                     description: State updated
+                    schema:
+                        $ref: "#/definitions/OpResult"
                 400:
                     description: Invalid state update attempt
                 404:
@@ -583,7 +678,6 @@ paths:
                   required: true
                   description: Error messages for failed state
                   schema:
-
                       type: object
                       required:
                           - errors
@@ -595,6 +689,8 @@ paths:
             responses:
                 200:
                     description: State updated
+                    schema:
+                        $ref: "#/definitions/OpResult"
                 400:
                     description: Invalid state update attempt
                 404:
@@ -628,6 +724,8 @@ paths:
             responses:
                 200:
                     description: State updated
+                    schema:
+                        $ref: "#/definitions/OpResult"
                 400:
                     description: Invalid state update attempt
                 404:
@@ -725,15 +823,11 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown image object
-    /images/files/{imageId}/data:
+    /images/files/{imageId}/file:
         get:
             summary: Download image file
             description: Download single image file for object with given identifier
@@ -790,6 +884,27 @@ paths:
                         $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
+    /images/groups/options:
+        get:
+            summary: Image group options definitions
+            description: List definition of all supported image group options
+            operationId: listImageGroupOptions
+            tags:
+                - image
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of options
+                    schema:
+                        type: object
+                        required:
+                            - options
+                        properties:
+                            options:
+                                type: array
+                                items:
+                                    $ref: '#/definitions/ParameterDefinition'
     /images/groups/{imageGroupId}:
         get:
             summary: Get image group
@@ -829,7 +944,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown image group
-    /images/groups/{imageGroupId}/data:
+    /images/groups/{imageGroupId}/file:
         get:
             summary: Download image groups
             description: Download image groups file for object with given identifier
@@ -906,10 +1021,6 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 404:
                     description: Unknown image group
     /images/groups/{imageGroupId}/properties:
@@ -934,10 +1045,6 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
@@ -966,6 +1073,86 @@ paths:
                         $ref: "#/definitions/OpResult"
                 400:
                     description: Invalid file or request
+    /models:
+        get:
+            summary: List models
+            description: List of registed models in the repository
+            operationId: listModels
+            tags:
+                - model
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of model descriptors
+                    schema:
+                        $ref: "#/definitions/ObjectListing"
+                400:
+                    description: Invalid arguments
+    /models/{modelId}:
+        get:
+            summary: Get model
+            description: Get model with given identifier
+            operationId: getModel
+            tags:
+                - model
+            parameters:
+                - name: modelId
+                  in: path
+                  required: true
+                  description: Unique model identifier
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Model object
+                    schema:
+                        $ref: "#/definitions/ModelDescriptor"
+                404:
+                    description: Unknown model
+    /models/{modelId}/properties:
+        post:
+            summary: Update model property
+            description: Insert, delete, or update property of model description
+            operationId: upsertModelProperty
+            tags:
+                - model
+            parameters:
+                - name: modelId
+                  in: path
+                  required: true
+                  description: Unique model identifier
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertPropertiesRequest"
+            responses:
+                200:
+                    description: Property updated
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
+                404:
+                    description: Unknown model
     /subjects:
         get:
             summary: List subjects
@@ -1082,15 +1269,11 @@ paths:
             responses:
                 200:
                     description: Property updated
-                201:
-                    description: New property added
-                204:
-                    description: Property deleted
                 400:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown subject
-    /subjects/{subjectId}/data:
+    /subjects/{subjectId}/file:
         get:
             summary: Download anatomy file
             description: Download original anatomy file for object with given identifier
@@ -1155,23 +1338,7 @@ definitions:
                     $ref: "#/definitions/ImageGroupHandle"
                 fmri:
                     type: object
-                    $ref: "#/definitions/FMRIHandle"
-    FMRIHandle:
-        allOf:
-            - $ref: "#/definitions/ObjectHandle"
-            - properties:
-                experiment:
-                    type: object
-                    required:
-                        - id
-                        - links
-                    properties:
-                        id:
-                            type: string
-                        links:
-                            type: array
-                            items:
-                                $ref: "#/definitions/Reference"
+                    $ref: "#/definitions/ObjectHandle"
     GroupImage:
         type: object
         required:
@@ -1251,6 +1418,8 @@ definitions:
             - id
             - name
             - parameters
+            - outputs
+            - links
         properties:
             id:
                 type: string
@@ -1262,6 +1431,27 @@ definitions:
                 type: array
                 items:
                     $ref: '#/definitions/ParameterDefinition'
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    ModelResourceDescriptor:
+        type: object
+        required:
+            - id
+            - type
+        properties:
+            id:
+                type: string
+            type:
+                type: object
+                required:
+                    - id
+                properties:
+                    id:
+                        type: string
+                    format:
+                        type: string
     ObjectHandle:
         allOf:
             - $ref: "#/definitions/BaseObjectHandle"
@@ -1332,36 +1522,35 @@ definitions:
                         type: array
                         items:
                             type: string
-            default:
-                type: string
     PredictionHandle:
         allOf:
             - $ref: "#/definitions/ObjectHandle"
             - properties:
                 model:
-                    type: string
+                    $ref: "#/definitions/ModelDescriptor"
                 experiment:
-                    type: object
-                    required:
-                        - id
-                        - links
-                    properties:
-                        id:
-                            type: string
-                        links:
-                            type: array
-                            items:
-                                $ref: "#/definitions/Reference"
+                    $ref: "#/definitions/ExperimentHandle"
+                arguments:
+                    type: array
+                    items:
+                        $ref: "#/definitions/Attribute"
                 state:
                     type: string
                 errors:
                     type: array
                     items:
                         type: string
-                arguments:
+                attachments:
                     type: array
                     items:
-                        $ref: "#/definitions/Attribute"
+                        type: object
+                        properties:
+                            id:
+                                type: string
+                            links:
+                                type: array
+                                items:
+                                    $ref: "#/definitions/Reference"
     Reference:
         type: object
         required:
@@ -1396,3 +1585,22 @@ definitions:
         properties:
             properties:
                 $ref: "#/definitions/UpsertProperties"
+    WidgetDescriptor:
+        type: object
+        required:
+            - engine
+            - title
+            - specification
+            - resource
+            - sortOrder
+        properties:
+            engine:
+                type: string
+            title:
+                type: string
+            specification:
+                type: object
+            resource:
+                type: string
+            sortOrder:
+                type: integer

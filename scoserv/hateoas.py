@@ -1,8 +1,5 @@
 """Collection of classes and methods to generate URL's for API resources."""
 
-import utils
-
-
 # ------------------------------------------------------------------------------
 #
 # Constants
@@ -85,6 +82,10 @@ REF_KEY_SERVICE_IMAGES_UPLOAD = 'images.upload'
 REF_KEY_SERVICE_IMAGE_FILES_LIST = 'images.files.list'
 # List image groups
 REF_KEY_SERVICE_IMAGE_GROUPS_LIST = 'images.groups.list'
+# List supported image group options
+REF_KEY_SERVICE_IMAGE_GROUPS_OPTIONS = 'images.groups.options'
+# List model definitions
+REF_KEY_SERVICE_MODELS_LIST = 'models.list'
 # List subjects
 REF_KEY_SERVICE_SUBJECTS_LIST = 'subjects.list'
 # Create new subject via upload
@@ -94,6 +95,8 @@ REF_KEY_SERVICE_SUBJECTS_UPLOAD = 'subjects.upload'
 # Url components
 # ------------------------------------------------------------------------------
 
+# Url component for attachments
+URL_KEY_ATTACHMENTS = 'attachments'
 # Url component for experiments
 URL_KEY_EXPERIMENTS = 'experiments'
 # Url component for fMRI data
@@ -104,13 +107,15 @@ URL_KEY_IMAGES = 'images'
 URL_KEY_IMAGE_FILES = 'files'
 # Url component for image group objects
 URL_KEY_IMAGE_GROUPS = 'groups'
+# Url component for model definition
+URL_KEY_MODELS = 'models'
 # Url component for model run objects
 URL_KEY_PREDICTIONS = 'predictions'
 # Url component for subjects
 URL_KEY_SUBJECTS = 'subjects'
 
 # Url suffix for download references
-URL_SUFFIX_DOWNLOAD = 'data'
+URL_SUFFIX_DOWNLOAD = 'file'
 #Url suffix for images in an image group
 URL_SUFFIX_IMAGES = 'images'
 #Url suffix for references to update object options
@@ -283,6 +288,58 @@ class HATEOASReferenceFactory:
         experiment_url = self.experiment_reference(experiment_id)
         return experiment_url + '/' + URL_KEY_FMRI
 
+    def experiments_prediction_attachment_reference(self, experiment_id, run_id, resource_id):
+        """Url for model run attachment.
+
+        Parameters
+        ----------
+        experiment_id : string
+            Unique experiment identifier
+        run_id : string
+            Unique model run identifier
+        resource_id : string
+            Unique attachment identifier
+
+        Returns
+        -------
+        string
+            Model run object Url
+        """
+        base_url = self.experiments_prediction_reference(experiment_id, run_id)
+        return '/'.join([base_url, URL_KEY_ATTACHMENTS, resource_id])
+
+    def experiments_prediction_attachment_references(self, experiment_id, run_id, attachment):
+        """Reference list for model run attachment.
+
+        Parameters
+        Parameters
+        ----------
+        experiment_id : string
+            Unique experiment identifier
+        run_id : string
+            Unique model run identifier
+        attachment : scodata.modelrun.Attachment
+            Attachment descriptor
+
+        Returns
+        -------
+        List
+            List of reference objects, i.e., [{rel:..., href:...}]
+        """
+        self_ref = self.experiments_prediction_attachment_reference(
+            experiment_id,
+            run_id,
+            attachment.identifier
+        )
+        refs = {
+            REF_KEY_SELF : self_ref,
+            REF_KEY_DELETE : self_ref
+        }
+        # Add download link if attachment is a data file
+        if attachment.is_datafile:
+            refs[REF_KEY_DOWNLOAD] = self_ref + '/' + URL_SUFFIX_DOWNLOAD
+        return to_references(refs)
+
     def experiments_prediction_reference(self, experiment_id, run_id):
         """Url for individual model run. Model runs are weak entities and
         therefore require the experiment identifier together with the run
@@ -293,7 +350,7 @@ class HATEOASReferenceFactory:
         experiment_id : string
             Unique experiment identifier
         run_id : string
-            Uique model run identifier
+            Unique model run identifier
 
         Returns
         -------
@@ -395,6 +452,16 @@ class HATEOASReferenceFactory:
         """
         return self.image_groups_reference() +'/' + image_group_id
 
+    def image_groups_options_reference(self):
+        """Url to list definitions of supported image group options.
+
+        Returns
+        -------
+        string
+            List image group options definitions Url
+        """
+        return self.image_groups_reference() + '/' + URL_SUFFIX_OPTIONS
+
     def image_groups_reference(self):
         """Base Url for image group objects.
 
@@ -404,6 +471,31 @@ class HATEOASReferenceFactory:
             Image groups objects base Url
         """
         return self.base_url + '/' + URL_KEY_IMAGES + '/' + URL_KEY_IMAGE_GROUPS
+
+    def model_reference(self, model_id):
+        """Url for model definition object.
+
+        Parameters
+        ----------
+        model_id : string
+            Unique model identifier
+
+        Returns
+        -------
+        string
+            Model definition Url
+        """
+        return self.models_reference() + '/' + model_id
+
+    def models_reference(self):
+        """Base Url for model definition objects.
+
+        Returns
+        -------
+        string
+            Model definitions base Url
+        """
+        return self.base_url + '/' + URL_KEY_MODELS
 
     def object_references(self, obj):
         """List of references for given object. Object type will determine the
@@ -435,19 +527,22 @@ class HATEOASReferenceFactory:
             # Add reference to fMRI data (if present) and to upload fMRI
             fmri_url = self.experiments_fmri_reference(obj.identifier)
             refs[REF_KEY_FMRI_UPLOAD] = fmri_url
-            if not obj.fmri_data is None:
+            if not obj.fmri_data_id is None:
                 refs[REF_KEY_FMRI_GET] = fmri_url
             # Return reference list
             return to_references(refs)
         elif obj.is_functional_data:
             # fMRI data objecs have the basic reference set
-            self_ref = self.experiments_fmri_reference(obj.experiment)
-            return to_references(base_reference_set(self_ref))
+            refs = base_reference_set(
+                self.experiments_fmri_reference(obj.experiment_id)
+            )
+            refs['experiment'] = self.experiment_reference(obj.experiment_id)
+            return to_references(refs)
         elif obj.is_model_run:
             # Get base references.
             refs = base_reference_set(
                 self.experiments_prediction_reference(
-                    obj.experiment,
+                    obj.experiment_id,
                     obj.identifier
                 )
             )
@@ -488,6 +583,11 @@ class HATEOASReferenceFactory:
             # Subjects have the basic reference set
             self_ref = self.subject_reference(obj.identifier)
             return to_references(base_reference_set(self_ref))
+        elif obj.is_model:
+            # Return reference list
+            return to_references({
+                REF_KEY_SELF : self.model_reference(obj.identifier)
+            })
         else:
             raise ValueError('unknown object type')
 
@@ -507,6 +607,8 @@ class HATEOASReferenceFactory:
             REF_KEY_SERVICE_IMAGES_UPLOAD : self.base_url + '/' + URL_KEY_IMAGES + '/upload',
             REF_KEY_SERVICE_IMAGE_FILES_LIST : self.image_files_reference(),
             REF_KEY_SERVICE_IMAGE_GROUPS_LIST : self.image_groups_reference(),
+            REF_KEY_SERVICE_IMAGE_GROUPS_OPTIONS : self.image_groups_options_reference(),
+            REF_KEY_SERVICE_MODELS_LIST : self.models_reference(),
             REF_KEY_SERVICE_SUBJECTS_LIST : self.subjects_reference(),
             REF_KEY_SERVICE_SUBJECTS_UPLOAD : self.subjects_reference()
         })
@@ -598,4 +700,6 @@ def to_references(dictionary):
     List
         List of reference objects, i.e., [{rel:..., href:...}]
     """
-    return utils.to_list(dictionary, label_key=LIST_KEY, label_value=LIST_VALUE)
+    return [
+        {LIST_KEY : key, LIST_VALUE : dictionary[key]} for key in dictionary
+    ]

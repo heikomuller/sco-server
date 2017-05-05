@@ -1,7 +1,6 @@
 [
     {
-        "description": "",
-        "id": "kay13",
+        "_id": "kay13",
         "parameters": [
             {
                 "default": {
@@ -115,11 +114,12 @@
                 "name": "saturation_constants_by_label"
             }
         ],
-        "name": "kay13"
+        "properties" : {
+            "name": "kay13"
+        }
     },
     {
-        "description": "",
-        "id": "benson17",
+        "_id": "benson17",
         "parameters": [
             {
                 "default": {
@@ -233,6 +233,8 @@
                 "name": "saturation_constants_by_label"
             }
         ],
-        "name": "benson17"
+        "properties" : {
+            "name": "benson17"
+        }
     }
 ]

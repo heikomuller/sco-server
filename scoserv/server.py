@@ -1,22 +1,34 @@
 #!venv/bin/python
-import json
 import os
 import shutil
 import tempfile
+import urllib2
+import yaml
 
 from flask import Flask, jsonify, make_response, request, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-import scodata
-import scodata.attribute as attribute
-import scodata.datastore as datastore
-import scodata.mongo as mongo
-from scoengine import EngineException
-from scoengine import RabbitMQClient
+from api import SCOServerAPI
 import hateoas
-import serialize
-import utils
+
+
+# ------------------------------------------------------------------------------
+#
+# Gobal Constants
+#
+# ------------------------------------------------------------------------------
+
+"""Environment Variable containing path to config file. If not set will try
+file config.yaml in working directory.
+"""
+ENV_CONFIG = 'SCOSERVER_CONFIG'
+
+"""Url to default configuration file on GitHub."""
+WEB_CONFIG_FILE_URI = 'https://raw.githubusercontent.com/heikomuller/sco-server/master/config/config.yaml'
+
+"""Number of elements in object listings if limit is not specified in request"""
+DEFAULT_LISTING_SIZE = 10
 
 
 # -----------------------------------------------------------------------------
@@ -47,10 +59,28 @@ import utils
 # rabbitmq.user : RabbitMQ user name
 # rabbitmq.password : RabbitMQ user password
 #
-# The file is expected to contain a Json array with key, value pair objects
-# for each parameter
-with open('server.cfg', 'r') as f:
-    config = utils.from_list(json.load(f))
+# app.name : Application name for the service description
+# app.title : Application title for service description (used a page title in UI)
+# app.debug : Flag to switch debugging on/off
+# app.attachments : Definition of accepted model run attachments and their expected type
+# app.widgets : Definition of widgets to visualize model run post-processing results
+#
+# home.title : Title for main content on Web UI homepage
+# home.content : Html snippet containing the Web UI homepage content
+#
+# The file is expected to contain a Json object with a single element
+# 'properties' that is an array of key, value pair objects representing the
+# configuration parameters.
+LOCAL_CONFIG_FILE = os.getenv(ENV_CONFIG)
+if not LOCAL_CONFIG_FILE is None and os.path.isfile(LOCAL_CONFIG_FILE):
+    with open(LOCAL_CONFIG_FILE, 'r') as f:
+        obj = yaml.load(f.read())
+elif os.path.isfile('./config.yaml'):
+    with open('./config.yaml', 'r') as f:
+        obj = yaml.load(f.read())
+else:
+    obj = yaml.load(urllib2.urlopen(WEB_CONFIG_FILE_URI).read())
+config = {item['key']:item['value'] for item in obj['properties']}
 
 # App Path and Url
 APP_PATH = config['server.apppath']
@@ -61,17 +91,8 @@ if SERVER_PORT != 80:
     BASE_URL += ':' + str(SERVER_PORT)
 BASE_URL += APP_PATH + '/'
 # Flag to switch debugging on/off
-DEBUG = True
-# Service description file (JSON)
-SERVICE_DESCRIPTION_FILE = os.path.abspath(config['server.descriptionfile'])
-# Description file for registered models (JSON)
-IMG_GROUP_PARAMETERS_FILE = os.path.abspath(config['server.imagegroupparametersfile'])
-# Description file for registered models (JSON)
-MODELS_DESCRIPTION_FILE = os.path.abspath(config['server.modelsfile'])
-# Local folder for data files
-DATA_DIR = os.path.abspath(config['server.datadir'])
-# Local folder for SCO subject files
-ENV_DIR = os.path.abspath(config['server.envdir'])
+DEBUG = config['app.debug']
+
 # Log file
 LOG_FILE = os.path.abspath(config['server.logfile'])
 
@@ -79,42 +100,14 @@ LOG_FILE = os.path.abspath(config['server.logfile'])
 # Initialization
 # ------------------------------------------------------------------------------
 
+# Initialize the server API
+api = SCOServerAPI(config, BASE_URL)
+
 # Create the app and enable cross-origin resource sharing
 app = Flask(__name__)
 app.config['APPLICATION_ROOT'] = APP_PATH
 app.config['DEBUG'] = DEBUG
 CORS(app)
-# Instantiate the Standard Cortical Observer Data Store.
-db = scodata.SCODataStore(mongo.MongoDBFactory(db_name=config['mongo.db']), DATA_DIR)
-# Instantiate the SCO workflow engine. By default, we use the RabbitMQ engine
-# implementation
-engine = RabbitMQClient(
-    host=config['rabbitmq.host'],
-    port=config['rabbitmq.port'],
-    queue=config['rabbitmq.queue'],
-    user=config['rabbitmq.user'],
-    password=config['rabbitmq.password'],
-    reference_factory=hateoas.HATEOASReferenceFactory(BASE_URL)
-)
-# Serializer for resources. Serializer follows REST architecture constraint to
-# include hypermedia links with responses.
-serializer = serialize.JsonWebAPISerializer(BASE_URL)
-# Read service description from file
-with open(SERVICE_DESCRIPTION_FILE, 'r') as f:
-     service = json.load(f)
-# Readimage group parameter definitions from file
-with open(IMG_GROUP_PARAMETERS_FILE, 'r') as f:
-     imggrp_parameters = json.load(f)
-# Read models description from file
-with open(MODELS_DESCRIPTION_FILE, 'r') as f:
-     models = json.load(f)
-
-# ------------------------------------------------------------------------------
-# Constants
-# ------------------------------------------------------------------------------
-
-# Number of elements in object listings if limit is not specified in request
-DEFAULT_LISTING_SIZE = 10
 
 
 # ------------------------------------------------------------------------------
@@ -123,19 +116,16 @@ DEFAULT_LISTING_SIZE = 10
 #
 # ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
+# Service
+# ------------------------------------------------------------------------------
+
 @app.route('/')
 def index():
     """Overview (GET) - Returns object containing web service name and a list
     of references to various resources.
     """
-    return jsonify(
-        serializer.service_description(
-            service['name'],
-            service['descriptors'],
-            imggrp_parameters,
-            models
-        )
-    )
+    return jsonify(api.service_description())
 
 
 # ------------------------------------------------------------------------------
@@ -152,39 +142,8 @@ def experiments_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate experiment listing and return Json object
     return jsonify(
-        serializer.experiments_to_json(
-            db.experiments_list(limit=limit, offset=offset),
-            prop_set
-        )
+        api.experiments_list(limit=limit, offset=offset, properties=prop_set)
     )
-
-
-@app.route('/experiments/<string:experiment_id>', methods=['GET'])
-def experiments_get(experiment_id):
-    """Get experiment (GET) - Retrieve an experiment object from the database.
-    """
-    # Get experiment object from database.
-    experiment = db.experiments_get(experiment_id)
-    if experiment is None:
-        # Raise exception if experiment does not exist.
-        raise ResourceNotFound(experiment_id)
-    else:
-        # Retrieve associated subject, image_group, and fMRI data (if present)
-        # TODO: Handle cases where either of the objects has been deleted
-        subject = db.subjects_get(experiment.subject)
-        image_group = db.image_groups_get(experiment.images)
-        fmri = None
-        if not experiment.fmri_data is None:
-            fmri = db.experiments_fmri_get(experiment.identifier)
-        # Return Json serialization of object.
-        return jsonify(
-            serializer.experiment_to_json(
-                experiment,
-                subject,
-                image_group,
-                fmri=fmri
-            )
-        )
 
 
 @app.route('/experiments', methods=['POST'])
@@ -201,7 +160,7 @@ def experiments_create():
             raise InvalidRequest('missing element in Json body: ' + key)
     # Call API method to create a new experiment object
     try:
-        experiment = db.experiments_create(
+        result = api.experiments_create(
             json_obj['subject'],
             json_obj['images'],
             get_properties_list(json_obj['properties'], True)
@@ -209,7 +168,20 @@ def experiments_create():
     except ValueError as ex:
         raise InvalidRequest(str(ex))
     # Return result including list of references for new experiment
-    return jsonify(serializer.response_success(experiment)), 201
+    return jsonify(result), 201
+
+
+@app.route('/experiments/<string:experiment_id>', methods=['GET'])
+def experiments_get(experiment_id):
+    """Get experiment (GET) - Retrieve an experiment object from the database.
+    """
+    # Get experiment object from database. Raise exception if experiment does
+    # not exist.
+    experiment = api.experiments_get(experiment_id)
+    if experiment is None:
+        raise ResourceNotFound(experiment_id)
+    else:
+        return jsonify(experiment)
 
 
 @app.route('/experiments/<string:experiment_id>', methods=['DELETE'])
@@ -219,7 +191,7 @@ def experiments_delete(experiment_id):
     """
     # Delete experiment object with given identifier. Returns 204 if expeirment
     # existed or 404 if result of delete is None (by raising ResourceNotFound)
-    if not db.experiments_delete(experiment_id) is None:
+    if not api.experiments_delete(experiment_id) is None:
         return '', 204
     else:
         raise ResourceNotFound(experiment_id)
@@ -235,7 +207,7 @@ def experiments_upsert_property(experiment_id):
     # Upsert experiment properties. The response indicates if the experiment
     # exists. Will throw ValueError if property set results in illegal update.
     try:
-        if db.experiments_upsert_property(experiment_id, properties) is None:
+        if api.experiments_upsert_property(experiment_id, properties) is None:
             raise ResourceNotFound(experiment_id)
         else:
             return '', 200
@@ -247,21 +219,6 @@ def experiments_upsert_property(experiment_id):
 # Functional Data
 # ------------------------------------------------------------------------------
 
-@app.route('/experiments/<string:experiment_id>/fmri', methods=['GET'])
-def experiments_fmri_get(experiment_id):
-    """Get functional MRI data (GET) - Retrieve a functional MRI data object
-    from the database.
-    """
-    # Get experiments fMRI object from database.
-    fmri = db.experiments_fmri_get(experiment_id)
-    if fmri is None:
-        # Raise exception if experiments fMRI does not exist.
-        raise ResourceNotFound(experiment_id + ':fmri')
-    else:
-        # Return Json serialization of object.
-        return jsonify(serializer.experiment_fmri_to_json(fmri))
-
-
 @app.route('/experiments/<string:experiment_id>/fmri', methods=['POST'])
 def experiments_fmri_create(experiment_id):
     """Upload functional MRI data (POST) - Upload a functional MRI data archive
@@ -270,17 +227,28 @@ def experiments_fmri_create(experiment_id):
     # Get the uploaded file. Method raises InvalidRequest if no file was given
     tmp_dir, upload_file = get_upload_file(request)
     # Upload the fMRI data and associate it with the experiment.
-    fmri = db.experiments_fmri_create(
-        experiment_id,
-        upload_file
-    )
+    result = api.experiments_fmri_create(experiment_id, upload_file)
     # Delete temporary directory
     shutil.rmtree(tmp_dir)
     # If fMRI is None the given experiment does not exist
-    if fmri is None:
+    if result is None:
         raise ResourceNotFound(experiment_id + ':fmri')
     # Return result including a list of references to updated experiment
-    return jsonify(serializer.response_success(fmri)), 201
+    return jsonify(result), 201
+
+
+@app.route('/experiments/<string:experiment_id>/fmri', methods=['GET'])
+def experiments_fmri_get(experiment_id):
+    """Get functional MRI data (GET) - Retrieve a functional MRI data object
+    from the database.
+    """
+    # Get experiments fMRI object from database. Raise exception if not fMRI
+    # object is associated with the given experiment.
+    fmri = api.experiments_fmri_get(experiment_id)
+    if fmri is None:
+        raise ResourceNotFound(experiment_id + ':fmri')
+    else:
+        return jsonify(fmri)
 
 
 @app.route('/experiments/<string:experiment_id>/fmri', methods=['DELETE'])
@@ -291,7 +259,7 @@ def experiments_fmri_delete(experiment_id):
     # Delete experiments fMRI object with given identifier. Returns 204 if
     # experiment had fMRI data associated with it or 404 if result of delete is
     # None (by raising ResourceNotFound)
-    if not db.experiments_fmri_delete(experiment_id) is None:
+    if not api.experiments_fmri_delete(experiment_id) is None:
         return '', 204
     else:
         raise ResourceNotFound(experiment_id + ':fmri')
@@ -302,17 +270,12 @@ def experiments_fmri_download(experiment_id):
     """Download functional MRI data (GET) - Download data of previously uploaded
     functional MRI data.
     """
-    # Get download information for experiments fMRI data object. The result is
-    # None if experiment of fMRI obejct does not exist.
-    file_info = db.experiments_fmri_download(experiment_id)
-    if file_info is None:
-        raise ResourceNotFound(experiment_id + ':fmri')
-    # Send file in the object's upload folder
-    return send_file(
-        file_info.file,
-        mimetype=file_info.mime_type,
-        as_attachment=True,
-        attachment_filename=file_info.name
+    # Get download information for experiments fMRI data object and send the
+    # data file. Raises 404 exception if no data file is associated with the
+    # requested resource (or the experiment does not exist).
+    return download_file(
+        api.experiments_fmri_download(experiment_id),
+        experiment_id + ':fmri'
     )
 
 
@@ -326,7 +289,7 @@ def experiments_fmri_upsert_property(experiment_id):
     # Upsert fMRI data object's properties. The response indicates if the object
     # exists. Will throw ValueError if property set results in illegal update.
     try:
-        if db.experiments_fmri_upsert_property(experiment_id, properties) is None:
+        if api.experiments_fmri_upsert_property(experiment_id, properties) is None:
             raise ResourceNotFound(experiment_id + ':fmri')
         else:
             return '', 200
@@ -338,6 +301,63 @@ def experiments_fmri_upsert_property(experiment_id):
 # Prediction Data
 # ------------------------------------------------------------------------------
 
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/attachments/<string:resource_id>', methods=['POST'])
+def experiments_predictions_attachments_create(experiment_id, run_id, resource_id):
+    """Create Attachment (POST) - Attach data file to a given model run.
+    """
+    # Get attached file that is associated with request
+    tmp_dir, upload_file = get_upload_file(request)
+    # Update state. If result is None (i.e., experiment of model run does not
+    # exists) return 404. Otherwise, return 200. If a ValueError is raised the
+    # intended update violates a valid model run time line.
+    try:
+        result = api.experiments_predictions_attachments_create(
+            experiment_id,
+            run_id,
+            resource_id,
+            upload_file
+        )
+        if result is None:
+            shutil.rmtree(tmp_dir)
+            raise ResourceNotFound(':'.join([experiment_id, run_id, resource_id]))
+    except ValueError as ex:
+        shutil.rmtree(tmp_dir)
+        raise InvalidRequest(str(ex))
+    # Clean-up and return success
+    shutil.rmtree(tmp_dir)
+    return jsonify(result), 200
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/attachments/<string:resource_id>', methods=['DELETE'])
+def experiments_predictions_attachments_delete( experiment_id, run_id, resource_id):
+    """Delete attachment (DELETE) - Delete attached file with given resource
+    identifier from a mode run.
+    """
+    # Delete attached resource with given identifier. Returns 204 if resource
+    # existed or 404 if result of delete is False
+    if api.experiments_predictions_attachments_delete(experiment_id, run_id, resource_id):
+        return '', 204
+    else:
+        raise ResourceNotFound(':'.join(experiment_id, run_id, resource_id))
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/attachments/<string:resource_id>/file', methods=['GET'])
+def experiments_predictions_attachments_download(experiment_id, run_id, resource_id):
+    """Download attachment (GET) - Download data file that has been attached to
+    a given model run.
+    """
+    # Get download information for model run result and send the file. Raises
+    # 404 exception if the resource does not exists.
+    return download_file(
+        api.experiments_predictions_attachments_download(
+            experiment_id,
+            run_id,
+            resource_id
+        ),
+        experiment_id + ':' + run_id + ':' + resource_id
+    )
+
+
 @app.route('/experiments/<string:experiment_id>/predictions', methods=['GET'])
 def experiments_predictions_list(experiment_id):
     """List predictions (GET) - Get a list of all model runs and their
@@ -348,33 +368,13 @@ def experiments_predictions_list(experiment_id):
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate prediction listing and return Json object
     return jsonify(
-        serializer.experiment_predictions_to_json(
-            db.experiments_predictions_list(
-                experiment_id,
-                limit=limit,
-                offset=offset),
-            prop_set,
-            experiment_id
+        api.experiments_predictions_list(
+            experiment_id,
+            limit=limit,
+            offset=offset,
+            properties=prop_set
         )
     )
-
-
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>', methods=['GET'])
-def experiments_predictions_get(experiment_id, prediction_id):
-    """Get prediction (GET) - Retrieve a model run and its prediction result
-    for a given experiment.
-    """
-    # Get prediction object from database.
-    prediction = db.experiments_predictions_get(experiment_id, prediction_id)
-    if prediction is None:
-        # Raise exception if prediction does not exist.
-        raise ResourceNotFound(experiment_id + ':' + prediction_id)
-    else:
-        # Return Json serialization of object.
-        return jsonify(serializer.experiment_prediction_to_json(
-            prediction,
-            db.experiments_get(experiment_id)
-        ))
 
 
 @app.route('/experiments/<string:experiment_id>/predictions', methods=['POST'])
@@ -390,80 +390,73 @@ def experiments_predictions_create(experiment_id):
     for key in ['name', 'model', 'arguments']:
         if not key in json_obj:
             raise InvalidRequest('missing element in Json body: ' + key)
-    # Make sure that the specified model exists
-    model_id = json_obj['model']
-    model = None
-    for element in models:
-        if element['id'] == model_id:
-            model = element
-            break;
-    if model is None:
-        raise InvalidRequest('unknown model: ' + model_id)
     # Get dictionary of properties ifpresent in request
     if 'properties' in json_obj:
         properties = get_properties_list(json_obj['properties'], False)
     else:
         properties = None
-    # Call create method of API to get a new model run object handle.
-    model_run = db.experiments_predictions_create(
-        experiment_id,
-        model_id,
-        json_obj['name'],
-        get_attributes(json_obj['arguments'], model['parameters']),
-        properties=properties
-    )
-    # The result is None if experiment does not exists
-    if model_run is None:
-        raise ResourceNotFound(experiment_id)
-    # Start the model run
+    # Call create method of API. This will raise an exception if the model
+    # does not exist or if running the model failed. The result is None if the
+    # experiment does not exist.
     try:
-        engine.run_model(model_run)
-    except EngineException as ex:
-        # Delete model run from database if running the model failed.
-        db.experiments_predictions_delete(
-            model_run.experiment,
-            model_run.identifier,
-            erase=True
+        result = api.experiments_predictions_create(
+            experiment_id,
+            json_obj['model'],
+            json_obj['name'],
+            json_obj['arguments'],
+            properties=properties
         )
-        raise APIRequestException(ex.message, ex.status_code)
-    # Return result including list of references for new model run.
-    return jsonify(serializer.response_success(model_run)), 201
+        # The result is None if experiment does not exists
+        if result is None:
+            raise ResourceNotFound(experiment_id)
+        # Return result including list of references for new model run.
+        return jsonify(result), 201
+    except ValueError as ex:
+        raise InvalidRequest(ex.message)
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>', methods=['DELETE'])
-def experiments_predictions_delete(experiment_id, prediction_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>', methods=['GET'])
+def experiments_predictions_get(experiment_id, run_id):
+    """Get prediction (GET) - Retrieve a model run and its prediction result
+    for a given experiment.
+    """
+    # Get prediction object from database. Raise exception if prediction does
+    # not exist.
+    prediction = api.experiments_predictions_get(experiment_id, run_id)
+    if prediction is None:
+        raise ResourceNotFound(experiment_id + ':' + run_id)
+    else:
+        return jsonify(prediction)
+
+
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>', methods=['DELETE'])
+def experiments_predictions_delete(experiment_id, run_id):
     """Delete prediction (DELETE) - Delete model run and potential prediction
     results associated with a given experiment.
     """
     # Delete prediction object with given identifier. Returns 204 if prediction
     # existed or 404 if result of delete is None (by raising ResourceNotFound)
-    if not db.experiments_predictions_delete(experiment_id, prediction_id) is None:
+    if not api.experiments_predictions_delete(experiment_id, run_id) is None:
         return '', 204
     else:
-        raise ResourceNotFound(experiment_id + ':' + prediction_id)
+        raise ResourceNotFound(experiment_id + ':' + run_id)
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/data')
-def experiments_predictions_download(experiment_id, prediction_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/data')
+def experiments_predictions_download(experiment_id, run_id):
     """Download prediction (GET) - Download prediction result generated by a
     successfully finished model run that is associated with a given experiment.
     """
-    # Get download information for given object.
-    file_info = db.experiments_predictions_download(experiment_id, prediction_id)
-    # The result is None if object does not exist
-    if file_info is None:
-        raise ResourceNotFound(experiment_id + ':' + prediction_id)
-    # Send file in the object's upload folder
-    return send_file(
-        file_info.file,
-        mimetype=file_info.mime_type,
-        as_attachment=True,
-        attachment_filename=file_info.name
+    # Get download information for model run result and send the file. Raises
+    # 404 exception if the resource does not exists.
+    return download_file(
+        api.experiments_predictions_download(experiment_id, run_id),
+        experiment_id + ':' + run_id
     )
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/properties', methods=['POST'])
-def experiments_predictions_upsert_property(experiment_id, prediction_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/properties', methods=['POST'])
+def experiments_predictions_upsert_property(experiment_id, run_id):
     """Upsert prediction (POST) - Upsert a property of a model run object
     associated with a given experiment.
     """
@@ -472,40 +465,40 @@ def experiments_predictions_upsert_property(experiment_id, prediction_id):
     # Upsert model run properties. The response indicates if the model run
     # exists. Will throw ValueError if property set results in illegal update.
     try:
-        result = db.experiments_predictions_upsert_property(
+        result = api.experiments_predictions_upsert_property(
             experiment_id,
-            prediction_id,
+            run_id,
             properties)
         if result is None:
-            raise ResourceNotFound(prediction_id)
+            raise ResourceNotFound(run_id)
         else:
             return '', 200
     except ValueError as ex:
         raise InvalidRequest(str(ex))
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state/active', methods=['POST'])
-def experiments_predictions_update_state_active(experiment_id, prediction_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/state/active', methods=['POST'])
+def experiments_predictions_update_state_active(experiment_id, run_id):
     """Update run state (POST) - Update the state of an existing model run
     to active. Does not expect a request body"""
     # Update state. If result is None (i.e., experiment of model run does not
     # exists) return 404. Otherwise, return 200. If a ValueError is raised the
     # intended update violates a valid model run time line.
     try:
-        result = db.experiments_predictions_update_state_active(
+        result = api.experiments_predictions_update_state_active(
             experiment_id,
-            prediction_id
+            run_id
         )
         if result is None:
-            raise ResourceNotFound(prediction_id)
+            raise ResourceNotFound(run_id)
         else:
             return '', 200
     except ValueError as ex:
         raise InvalidRequest(str(ex))
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state/error', methods=['POST'])
-def experiments_predictions_update_state_error(experiment_id, prediction_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/state/error', methods=['POST'])
+def experiments_predictions_update_state_error(experiment_id, run_id):
     """Update run state (POST) - Update the state of an existing model run to
     failed. Expects a list of error messages in the request body."""
     # Get state object from request
@@ -518,21 +511,21 @@ def experiments_predictions_update_state_error(experiment_id, prediction_id):
     # exists) return 404. Otherwise, return 200. If a ValueError is raised the
     # intended update violates a valid model run time line.
     try:
-        result = db.experiments_predictions_update_state_error(
+        result = api.experiments_predictions_update_state_error(
             experiment_id,
-            prediction_id,
+            run_id,
             json_obj['errors']
         )
         if result is None:
-            raise ResourceNotFound(prediction_id)
+            raise ResourceNotFound(run_id)
         else:
             return '', 200
     except ValueError as ex:
         raise InvalidRequest(str(ex))
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:prediction_id>/state/success', methods=['POST'])
-def experiments_predictions_update_state_success(experiment_id, prediction_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/state/success', methods=['POST'])
+def experiments_predictions_update_state_success(experiment_id, run_id):
     """Update run state (POST) - Update the state of an existing model run to
     success. Expects a result file in the message body."""
     # Get model result file that is associated with request
@@ -541,14 +534,14 @@ def experiments_predictions_update_state_success(experiment_id, prediction_id):
     # exists) return 404. Otherwise, return 200. If a ValueError is raised the
     # intended update violates a valid model run time line.
     try:
-        result = db.experiments_predictions_update_state_success(
+        result = api.experiments_predictions_update_state_success(
             experiment_id,
-            prediction_id,
+            run_id,
             upload_file
         )
         if result is None:
             shutil.rmtree(tmp_dir)
-            raise ResourceNotFound(prediction_id)
+            raise ResourceNotFound(run_id)
     except ValueError as ex:
         shutil.rmtree(tmp_dir)
         raise InvalidRequest(str(ex))
@@ -558,7 +551,7 @@ def experiments_predictions_update_state_success(experiment_id, prediction_id):
 
 
 # ------------------------------------------------------------------------------
-# Images
+# Image Files
 # ------------------------------------------------------------------------------
 
 @app.route('/images/files')
@@ -569,24 +562,20 @@ def image_files_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate image file listing and return Json object
     return jsonify(
-        serializer.image_files_to_json(
-            db.image_files_list(limit=limit, offset=offset),
-            prop_set
-        )
+        api.image_files_list(limit=limit, offset=offset, properties=prop_set)
     )
 
 
 @app.route('/images/files/<string:image_id>', methods=['GET'])
 def image_files_get(image_id):
     """Get image (GET) - Retrieve an image object from the database."""
-    # Get image file object from database.
-    img = db.image_files_get(image_id)
+    # Get image file object from database. Raise exception if image does not
+    # exist.
+    img = api.image_files_get(image_id)
     if img is None:
-        # Raise exception if image does not exist.
         raise ResourceNotFound(image_id)
     else:
-        # Return Json serialization of object.
-        return jsonify(serializer.image_file_to_json(img))
+        return jsonify(img)
 
 
 @app.route('/images/files/<string:image_id>', methods=['DELETE'])
@@ -596,7 +585,7 @@ def image_files_delete(image_id):
     """
     # Delete image file object with given identifier. Returns 204 if image
     # existed or 404 if result of delete is None (by raising ResourceNotFound)
-    if not db.image_files_delete(image_id) is None:
+    if not api.image_files_delete(image_id) is None:
         return '', 204
     else:
         raise ResourceNotFound(image_id)
@@ -605,17 +594,12 @@ def image_files_delete(image_id):
 @app.route('/images/files/<string:image_id>/data')
 def image_files_download(image_id):
     """Download image file (GET)"""
-    # Get download information for given object.
-    file_info = db.image_files_download(image_id)
-    # The result is None if object does not exist
-    if file_info is None:
-        raise ResourceNotFound(image_id)
-    # Send file in the object's upload folder
-    return send_file(
-        file_info.file,
-        mimetype=file_info.mime_type,
-        as_attachment=False,
-        attachment_filename=file_info.name
+    # Get download information for image and send the file. Raises 404 exception
+    # if the image does not exists.
+    return download_file(
+        api.image_files_download(image_id),
+        image_id,
+        as_attachment=False
     )
 
 
@@ -629,7 +613,7 @@ def image_files_upsert_property(image_id):
     # Upsert image file properties. The response indicates if the image exists.
     # Will throw ValueError if property set results in illegal update.
     try:
-        if db.image_files_upsert_property(image_id, properties) is None:
+        if api.image_files_upsert_property(image_id, properties) is None:
             raise ResourceNotFound(image_id)
         else:
             return '', 200
@@ -650,24 +634,29 @@ def image_groups_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate image group listing and return Json object
     return jsonify(
-        serializer.image_groups_to_json(
-            db.image_groups_list(limit=limit, offset=offset),
-            prop_set
-        )
+        api.image_groups_list(limit=limit, offset=offset, properties=prop_set)
+    )
+
+
+@app.route('/images/groups/options')
+def image_groups_options():
+    """List image group options (GET) - List of all supported image group
+    options."""
+    return jsonify(
+        api.image_groups_options()
     )
 
 
 @app.route('/images/groups/<string:image_group_id>', methods=['GET'])
 def image_groups_get(image_group_id):
     """Get image group (GET) - Retrieve an image group from the database."""
-    # Get image group object from database.
-    img_grp = db.image_groups_get(image_group_id)
+    # Get image group object from database. Raise exception if image group does
+    # not exist.
+    img_grp = api.image_groups_get(image_group_id)
     if img_grp is None:
-        # Raise exception if image group does not exist.
         raise ResourceNotFound(image_group_id)
     else:
-        # Return Json serialization of object.
-        return jsonify(serializer.image_group_to_json(img_grp))
+        return jsonify(img_grp)
 
 
 @app.route('/images/groups/<string:image_group_id>', methods=['DELETE'])
@@ -678,27 +667,10 @@ def image_groups_delete(image_group_id):
     # Delete image group object with given identifier. Returns 204 if image
     # group existed or 404 if result of delete is None (by raising
     # ResourceNotFound)
-    if not db.image_groups_delete(image_group_id) is None:
+    if not api.image_groups_delete(image_group_id) is None:
         return '', 204
     else:
         raise ResourceNotFound(image_group_id)
-
-
-@app.route('/images/groups/<string:image_group_id>/data')
-def image_groups_download(image_group_id):
-    """Download image group file (GET)"""
-    # Get download information for given object.
-    file_info = db.image_groups_download(image_group_id)
-    # The result is None if object does not exist
-    if file_info is None:
-        raise ResourceNotFound(image_group_id)
-    # Send file in the object's upload folder
-    return send_file(
-        file_info.file,
-        mimetype=file_info.mime_type,
-        as_attachment=True,
-        attachment_filename=file_info.name
-    )
 
 
 @app.route('/images/groups/<string:image_group_id>/images')
@@ -710,11 +682,25 @@ def image_groups_images_list(image_group_id):
     offset, limit, prop_set = get_listing_arguments(request)
     # Get group image listing. Return 404 if result is None, i.e., image group
     # is unknown
-    listing = db.image_group_images_list(image_group_id, limit=limit, offset=offset)
-    if limit is None:
+    listing = api.image_groups_images_list(
+        image_group_id,
+        limit=limit,
+        offset=offset
+    )
+    if listing is None:
         raise ResourceNotFound(image_group_id)
-    # Decorate group image listing and return Json object
-    return jsonify(serializer.image_group_images_to_json(listing, image_group_id))
+    return jsonify(listing)
+
+
+@app.route('/images/groups/<string:image_group_id>/data')
+def image_groups_download(image_group_id):
+    """Download image group file (GET)"""
+    # Get download information for image group and send the group archive file.
+    # Raises 404 exception if the image group does not exists.
+    return download_file(
+        api.image_groups_download(image_group_id),
+        image_group_id
+    )
 
 
 @app.route('/images/groups/<string:image_group_id>/options', methods=['POST'])
@@ -729,17 +715,16 @@ def image_groups_update_options(image_group_id):
     json_obj = request.json
     if not 'options' in json_obj:
         raise InvalidRequest('missing element in Json body: options')
-    # Convert the Json element associated with key 'options' into a list of
-    # typed property instance. Throws an InvalidRequest exception if the format
-    # of the element value is invalid.
-    attributes = get_attributes(json_obj['options'], imggrp_parameters)
     # Upsert object options. The result will be None if image group does not
     # exist.
     try:
-        img_grp = db.image_groups_update_options(image_group_id, attributes)
+        result = api.image_groups_update_options(
+            image_group_id,
+            json_obj['options']
+        )
     except ValueError as ex:
         raise InvalidRequest(str(ex))
-    if img_grp is None:
+    if result is None:
         raise ResourceNotFound(image_group_id)
     return '', 200
 
@@ -754,7 +739,7 @@ def image_groups_upsert_property(image_group_id):
     # Upsert image group properties. The response indicates if the image group
     # exists. Will throw ValueError if property set results in illegal update.
     try:
-        if db.image_groups_upsert_property(image_group_id, properties) is None:
+        if api.image_groups_upsert_property(image_group_id, properties) is None:
             raise ResourceNotFound(image_group_id)
         else:
             return '', 200
@@ -773,14 +758,62 @@ def images_create():
     # file. A value error will be raised if file is invalid.
     tmp_dir, upload_file = get_upload_file(request)
     try:
-        img_handle =  db.images_create(upload_file)
+        result =  api.images_create(upload_file)
     except ValueError as err:
         # Make sure to delete temporary file before raising InvalidRequest
         shutil.rmtree(tmp_dir)
         raise InvalidRequest(str(err))
     # Clean up and return success.
     shutil.rmtree(tmp_dir)
-    return jsonify(serializer.response_success(img_handle)), 201
+    return jsonify(result), 201
+
+
+# ------------------------------------------------------------------------------
+# Models
+# ------------------------------------------------------------------------------
+
+@app.route('/models')
+def models_list():
+    """List models (GET) - Get a list of all regostered predictive model.
+    """
+    # Get listing arguments. Method raises exception if argument values are
+    # of invalid type
+    offset, limit, prop_set = get_listing_arguments(request)
+    # Decorate prediction listing and return Json object
+    return jsonify(
+        api.models_list(limit=limit, offset=offset, properties=prop_set)
+    )
+
+
+@app.route('/models/<string:model_id>', methods=['GET'])
+def models_get(model_id):
+    """Get model (GET) - Retrieve a predictive model definition from the
+    model repository.
+    """
+    # Get model from database. Raise exception if model does not exist.
+    model = api.models_get(model_id)
+    if model is None:
+        raise ResourceNotFound(model_id)
+    else:
+        return jsonify(model)
+
+
+@app.route('/models/<string:model_id>/properties', methods=['POST'])
+def models_upsert_property(model_id):
+    """Upsert model property (POST) - Upsert a property of a model
+    object in the database.
+    """
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert experiment properties. The response indicates if the experiment
+    # exists. Will throw ValueError if property set results in illegal update.
+    try:
+        if api.models_upsert_property(model_id, properties) is None:
+            raise ResourceNotFound(model_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
 
 
 # ------------------------------------------------------------------------------
@@ -797,10 +830,7 @@ def subjects_list():
     offset, limit, prop_set = get_listing_arguments(request)
     # Decorate subject listing and return Json object
     return jsonify(
-        serializer.subjects_to_json(
-            db.subjects_list(limit=limit, offset=offset),
-            prop_set
-        )
+        api.subjects_list(limit=limit, offset=offset, properties=prop_set)
     )
 
 
@@ -809,14 +839,12 @@ def subjects_get(subject_id):
     """Get subject (GET) - Retrieve a brain anatomy MRI object from the
     database.
     """
-    # Get subject from database.
-    subject = db.subjects_get(subject_id)
+    # Get subject from database. Raise exception if subject does not exist.
+    subject = api.subjects_get(subject_id)
     if subject is None:
-        # Raise exception if subject does not exist.
         raise ResourceNotFound(subject_id)
     else:
-        # Return Json serialization of object.
-        return jsonify(serializer.subject_to_json(subject))
+        return jsonify(subject)
 
 
 @app.route('/subjects', methods=['POST'])
@@ -826,14 +854,14 @@ def subjects_create():
     # throws InvalidRequest exception if necessary.
     tmp_dir, upload_file = get_upload_file(request)
     try:
-        subject =  db.subjects_create(upload_file)
+        result = api.subjects_create(upload_file)
     except ValueError as ex:
         # Make sure to clean up and raise InvalidRequest exception
         shutil.rmtree(tmp_dir)
         raise InvalidRequest(str(ex))
     # Delete temp folder and return success.
     shutil.rmtree(tmp_dir)
-    return jsonify(serializer.response_success(subject)), 201
+    return jsonify(result), 201
 
 
 @app.route('/subjects/<string:subject_id>', methods=['DELETE'])
@@ -843,7 +871,7 @@ def subjects_delete(subject_id):
     """
     # Delete subject data object with given identifier. Returns 204 if subject
     # existed or 404 if result of delete is None (by raising ResourceNotFound)
-    if not db.subjects_delete(subject_id) is None:
+    if not api.subjects_delete(subject_id) is None:
         return '', 204
     else:
         raise ResourceNotFound(subject_id)
@@ -854,19 +882,11 @@ def subject_download(subject_id):
     """Download subject (GET) - Download data of previously uploaded subject
     anatomy.
     """
-    # Get download information for given object. Method raises ResourceNotFound
-    # exception if object does not exists or does not have any downloadable
-    # representation.
-    file_info = db.subjects_download(subject_id)
-    # The result is None if subject does not exists
-    if file_info is None:
-        raise ResourceNotFound(subject_id)
-    # Send file in the object's upload folder
-    return send_file(
-        file_info.file,
-        mimetype=file_info.mime_type,
-        as_attachment=True,
-        attachment_filename=file_info.name
+    # Get download information for subject and send the subject archive file.
+    # Raises 404 exception if the subject does not exists.
+    return download_file(
+        api.subjects_download(subject_id),
+        subject_id
     )
 
 
@@ -880,7 +900,7 @@ def subjects_upsert_property(subject_id):
     # Upsert subject properties. The response indicates if the subject exists.
     # Will throw ValueError if property set results in illegal update.
     try:
-        if db.subjects_upsert_property(subject_id, properties) is None:
+        if api.subjects_upsert_property(subject_id, properties) is None:
             raise ResourceNotFound(subject_id)
         else:
             return '', 200
@@ -959,55 +979,32 @@ class ResourceNotFound(APIRequestException):
 # Method Wrapper's that validate request format and arguments
 # ------------------------------------------------------------------------------
 
-def get_attributes(json_array, parameter_defs):
-    """Transform an Json array of typed attribute values into a list of
-    datastore.Attribute objects.
-
-    Expects a list of Json objects having 'name' and 'value' keys. The type of
-    the element associated with the 'value' key is arbitrary. Raises a
-    InvalidRequest exception if the given array violated expected format.
-
-    The list of parameter definitions defines the set valid parameter names .
-    Raises an InvalidRequest exception if a parameter with an invalid name is
-    in the Json array.
+def download_file(file_info, identifier, as_attachment=True):
+    """Send content of a given file that is associated associated with a data
+    store resource.
 
     Parameters
     ----------
-    json_array : array
-        List of Json objects ({'name':..., 'value':...})
-    parameter_defs : List(Dictionary)
-        List of parameter definitions
 
-    Returns
-    -------
-    List(Attribute)
-        List of typed attribute instances
+    file_info : FileInfo
+        Information about file on disk or None if requested resource does not
+        exist
+    identifier : string
+        Identifier of requested resource
+    as_attachment : bool
+        Flag indicating whether to send the file as attachment or not
     """
-    # Create a list of valis parameter names
-    valid_names = {}
-    for para in parameter_defs:
-        valid_names[para['id']] = para
-    result = []
-    # Make sure the given array is a list
-    if not isinstance(json_array, list):
-        raise InvalidRequest('argument is not a list')
-    # Iterate over all elements in the list. Make sure they are Json objects
-    # with 'name' and 'value' elements
-    for element in json_array:
-        if not isinstance(element, dict):
-            raise InvalidRequest('element is not a dictionary')
-        for key in ['name', 'value']:
-            if not key in element:
-                raise InvalidRequest('object has no key ' + key + ': ' + str(element))
-        name = str(element['name'])
-        if not name in valid_names:
-            raise InvalidRequest('invalid parameter name: ' + name)
-        try:
-            value = attribute.parse_value(element['value'], valid_names[name])
-        except ValueError as ex:
-            raise InvalidRequest(str(ex))
-        result.append(attribute.Attribute(name, value))
-    return result
+    # Raise 404 exception if resource does not exists, i.e., file info object
+    # is None
+    if file_info is None:
+        raise ResourceNotFound(identifier)
+    # Send file in the object's upload folder
+    return send_file(
+        file_info.file,
+        mimetype=file_info.mime_type,
+        as_attachment=as_attachment,
+        attachment_filename=file_info.name
+    )
 
 
 def get_listing_arguments(request, default_limit=DEFAULT_LISTING_SIZE):
@@ -1186,4 +1183,4 @@ if __name__ == '__main__':
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
-    run_simple('0.0.0.0', SERVER_PORT, application, use_reloader=True)
+    run_simple('0.0.0.0', SERVER_PORT, application, use_reloader=app.config['DEBUG'])

@@ -1,0 +1,20 @@
+widgets:
+    - engine: 'VEGALITE'
+      title: 'Just a demo'
+      resource: 'test'
+      sortOrder: 0
+      specification:
+          $schema: 'https://vega.github.io/schema/vega-lite/v2.json'
+          data:
+              url: ''
+              formatType: ''
+          mark: 'bar'
+          encoding:
+                x:
+                    timeUnit: 'month'
+                    field: 'date'
+                    type: 'temporal'
+                y:
+                    aggregate: 'mean'
+                    field: 'temp'
+                    type: 'quantitative'
