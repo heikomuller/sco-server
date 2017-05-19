@@ -15,6 +15,8 @@ properties:
       value : 'localhost'
     - key : 'rabbitmq.port'
       value : 5672
+    - key : 'rabbitmq.vhost'
+      value : '/sco'
     - key : 'rabbitmq.queue'
       value : 'sco'
     - key : 'rabbitmq.user'

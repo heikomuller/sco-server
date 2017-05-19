@@ -51,6 +51,7 @@ class SCOServerAPI(object):
         self.engine = RabbitMQClient(
             host=config['rabbitmq.host'],
             port=config['rabbitmq.port'],
+            virtual_host=config['rabbitmq.vhost'],
             queue=config['rabbitmq.queue'],
             user=config['rabbitmq.user'],
             password=config['rabbitmq.password'],

@@ -25,3 +25,9 @@
 * Add module to load list of models into database
 * Configuration from YAML (default on Web)
 * Add lists of valid attachments and list of widget definitions
+
+
+### 0.5.1 - 2017-05-19
+
+* Add RabbitMQ virtual host parameter to server configuration
+* Update Url patterns for file download
