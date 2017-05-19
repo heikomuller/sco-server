@@ -33,3 +33,4 @@
 * Update Url patterns for file download
 * Fixed bug in API when deleting failed model runs
 * Add init_database script
+* Add entry for image list file attachment
