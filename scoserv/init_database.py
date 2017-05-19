@@ -48,5 +48,7 @@ if __name__ == '__main__':
         models = json.load(f)
     # Get Mongo client factory
     mongo = MongoDBFactory(db_name=config['mongo.db'])
+    # Drop the database
+    mongo.drop_database()
     # Load models
     load_models(models, mongo.get_database().models)
