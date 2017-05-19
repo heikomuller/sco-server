@@ -469,7 +469,7 @@ class SCOServerAPI(object):
         except EngineException as ex:
             # Delete model run from database if running the model failed.
             self.db.experiments_predictions_delete(
-                model_run.experiment,
+                model_run.experiment_id,
                 model_run.identifier,
                 erase=True
             )

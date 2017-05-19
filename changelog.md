@@ -31,3 +31,4 @@
 
 * Add RabbitMQ virtual host parameter to server configuration
 * Update Url patterns for file download
+* Fixed bug in API when deleting failed model runs
