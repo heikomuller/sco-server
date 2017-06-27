@@ -18,3 +18,22 @@ widgets:
                     aggregate: 'mean'
                     field: 'temp'
                     type: 'quantitative'
+    - engine: 'VEGALITE'
+      title: 'Correlation Histogram'
+      resource: 'vega-corthist.csv'
+      sortOrder: 0
+      specification:
+          $schema: 'https://vega.github.io/schema/vega-lite/v2.json'
+          data:
+              url: ''
+              formatType: ''
+          mark: 'bar'
+          encoding:
+            x:
+                bin:
+                    maxbins: 10
+                field: 'correlation'
+                type: 'quantitative'
+            y:
+                aggregate: 'count'
+                type: 'quantitative'

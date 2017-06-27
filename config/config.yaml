@@ -29,10 +29,6 @@ properties:
       value : 'Standard Cortical Observer'
     - key: 'app.debug'
       value: true
-    - key : 'app.attachments'
-      value : 'https://raw.githubusercontent.com/heikomuller/sco-server/master/config/attachments.yaml'
-    - key : 'app.attachments'
-      value : 'https://raw.githubusercontent.com/heikomuller/sco-server/master/config/widgets.yaml'
     - key : 'home.title'
       value : 'Welcome'
     - key: home.content

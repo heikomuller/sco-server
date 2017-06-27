@@ -336,8 +336,7 @@ class HATEOASReferenceFactory:
             REF_KEY_DELETE : self_ref
         }
         # Add download link if attachment is a data file
-        if attachment.is_datafile:
-            refs[REF_KEY_DOWNLOAD] = self_ref + '/' + URL_SUFFIX_DOWNLOAD
+        refs[REF_KEY_DOWNLOAD] = self_ref + '/' + URL_SUFFIX_DOWNLOAD
         return to_references(refs)
 
     def experiments_prediction_reference(self, experiment_id, run_id):

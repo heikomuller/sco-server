@@ -14,7 +14,6 @@ import urllib2
 import yaml
 
 from scodata import SCODataStore
-from scodata.modelrun import ATTACHMENT_DATAFILE
 from scodata.mongo import MongoDBFactory
 from scoengine import EngineException
 from scoengine import RabbitMQClient
@@ -58,14 +57,7 @@ class SCOServerAPI(object):
             reference_factory=self.refs
         )
         # Instantiate the model registry
-        self.models = DefaultModelRegistry(mongo.get_database().models)
-        # Attachments are read from a resource in either Json or Yaml format
-        # (identified by the resource suffix; default is Json)
-        if config['app.attachments'].endswith('.yaml'):
-            attachments = yaml.load(read_resource(config['app.attachments']))['attachments']
-        else:
-            attachments = json.load(read_resource(config['app.attachments']))['attachments']
-        self.attachments = {attc['id'] : attc['type'] for attc in attachments}
+        self.models = DefaultModelRegistry(mongo)
         # Widgets are read from a resource in either Json or Yaml format
         # (identified by the resource suffix; default is Json)
         if config['app.widgets'].endswith('.yaml'):
@@ -86,7 +78,6 @@ class SCOServerAPI(object):
                 'imageGroupOptions' : [
                     opt.to_json() for opt in self.db.image_groups_options()
                 ],
-                'attachments' : attachments,
                 'widgets' : widgets
             },
             'links' : self.refs.service_references()
@@ -356,15 +347,9 @@ class SCOServerAPI(object):
             Dictionary representing a successful response. The result is None if
             the specified experiment or model run do not exist.
         """
-        # Return None if resource identifies an unknow attachment
-        if not resource_id in self.attachments:
-            return None
-        elif self.attachments[resource_id] == ATTACHMENT_DATAFILE:
-            result = self.db.experiments_predictions_attachments_create(
-                experiment_id, run_id, resource_id, filename
-            )
-        else:
-            raise ValueError('unknown attachment type: ' + self.attachments[resource_id])
+        result = self.db.experiments_predictions_attachments_create(
+            experiment_id, run_id, resource_id, filename
+        )
         # Make sure that the result is not None. Otherwise, return None to
         # indicate an unknown experiment or model run
         if not result is None:
@@ -450,12 +435,14 @@ class SCOServerAPI(object):
             the specified experiment does not exist.
         """
         # Make sure that the referenced model exists.
-        if not self.models.exists_object(model_id):
+        model = self.models.get_model(model_id)
+        if model is None:
             raise ValueError('unknown model: ' + model_id)
         # Call create method of API to get a new model run object handle.
         model_run = self.db.experiments_predictions_create(
             experiment_id,
             model_id,
+            model.parameters,
             name,
             arguments=arguments,
             properties=properties
@@ -565,7 +552,6 @@ class SCOServerAPI(object):
         obj['attachments'] = [
             {
                 'id' : attachment,
-                'type' : model_run.attachments[attachment].attachment_type,
                 'mimeType' : model_run.attachments[attachment].mime_type,
                 'links' : self.refs.experiments_prediction_attachment_references(
                     experiment_id,
@@ -1119,6 +1105,15 @@ class SCOServerAPI(object):
         obj['parameters'] = [
             attr.to_json() for attr in model.parameters
         ]
+        obj['outputs'] = {
+            'prediction' : model.outputs.prediction_filename,
+            'attachments' : [
+                {
+                    'filename' : a.filename,
+                    'mimeType' : a.mime_type
+                } for a in model.outputs.attachments
+            ]
+        }
         return obj
 
     # --------------------------------------------------------------------------

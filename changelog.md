@@ -34,3 +34,9 @@
 * Fixed bug in API when deleting failed model runs
 * Add init_database script
 * Add entry for image list file attachment
+
+
+### 0.6.0 - 2017-06-27
+
+* Adjust to changes in data store and model store
+* Bug-fix when deleting unknown attachment

@@ -63,10 +63,6 @@ paths:
                                         type: array
                                         items:
                                             $ref: '#/definitions/ModelDescriptor'
-                                    widgets:
-                                        type: array
-                                        items:
-                                            $ref: '#/definitions/WidgetDescriptor'
                             links:
                                 type: array
                                 items:
@@ -1431,6 +1427,26 @@ definitions:
                 type: array
                 items:
                     $ref: '#/definitions/ParameterDefinition'
+            outputs:
+                type: object
+                required:
+                    - prediction
+                    - attachments
+                properties:
+                    prediction:
+                        type: string
+                    attachments:
+                        type: array
+                        items:
+                            type: object
+                            required:
+                                - filename
+                                - mimeType
+                            properties:
+                                filename:
+                                    type: string
+                                mimeType:
+                                    type: string
             links:
                 type: array
                 items:
@@ -1544,9 +1560,16 @@ definitions:
                     type: array
                     items:
                         type: object
+                        required:
+                            - id
+                            - links
                         properties:
                             id:
                                 type: string
+                            widgets:
+                                type: array
+                                items:
+                                    $ref: '#/definitions/WidgetDescriptor'
                             links:
                                 type: array
                                 items:

@@ -59,7 +59,6 @@ DEFAULT_LISTING_SIZE = 10
 # app.name : Application name for the service description
 # app.title : Application title for service description (used a page title in UI)
 # app.debug : Flag to switch debugging on/off
-# app.attachments : Definition of accepted model run attachments and their expected type
 # app.widgets : Definition of widgets to visualize model run post-processing results
 #
 # home.title : Title for main content on Web UI homepage
@@ -335,7 +334,7 @@ def experiments_predictions_attachments_delete( experiment_id, run_id, resource_
     if api.experiments_predictions_attachments_delete(experiment_id, run_id, resource_id):
         return '', 204
     else:
-        raise ResourceNotFound(':'.join(experiment_id, run_id, resource_id))
+        raise ResourceNotFound(':'.join([experiment_id, run_id, resource_id]))
 
 
 @app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/attachments/<string:resource_id>/file', methods=['GET'])

@@ -74,10 +74,10 @@
                 "name": "compressive_constants_by_label"
             },
             {
-                "default": 12,
+                "default": 12.0,
                 "description": "normalized_pixels_per_degree (default: 12)\n\n(images) normalized_pixels_per_degree: Specifies the resolution of the images used in the calculation;\n        by default this is 15.",
                 "type": {
-                    "name": "int"
+                    "name": "float"
                 },
                 "id": "normalized_pixels_per_degree",
                 "name": "normalized_pixels_per_degree"
@@ -116,6 +116,23 @@
         ],
         "properties" : {
             "name": "kay13"
+        },
+        "outputs" : {
+            "prediction" : "prediction.nii.gz",
+            "attachments" : [
+                {
+                    "filename" : "accuracy.pdf",
+                    "mimeType" : "application/pdf"
+                },
+                {
+                    "filename" : "analysis.csv",
+                    "mimeType" : "text/csv"
+                },
+                {
+                    "filename" : "vega-corthist.csv",
+                    "mimeType" : "text/csv"
+                }
+            ]
         }
     },
     {
@@ -135,10 +152,10 @@
                 "name": "contrast_constants_by_label"
             },
             {
-                "default": 12,
+                "default": 12.0,
                 "description": "max_eccentricity (default: 12)\n\n(import_retinotopy) max_eccentricity: May specifies the maximum eccentricity value to use.",
                 "type": {
-                    "name": "int"
+                    "name": "float"
                 },
                 "id": "max_eccentricity",
                 "name": "max_eccentricity"
@@ -193,10 +210,10 @@
                 "name": "compressive_constants_by_label"
             },
             {
-                "default": 12,
+                "default": 12.0,
                 "description": "normalized_pixels_per_degree (default: 12)\n\n(images) normalized_pixels_per_degree: Specifies the resolution of the images used in the calculation;\n        by default this is 15.",
                 "type": {
-                    "name": "int"
+                    "name": "float"
                 },
                 "id": "normalized_pixels_per_degree",
                 "name": "normalized_pixels_per_degree"
@@ -235,6 +252,23 @@
         ],
         "properties" : {
             "name": "benson17"
+        },
+        "outputs" : {
+            "prediction" : "prediction.nii.gz",
+            "attachments" : [
+                {
+                    "filename" : "accuracy.pdf",
+                    "mimeType" : "application/pdf"
+                },
+                {
+                    "filename" : "analysis.csv",
+                    "mimeType" : "text/csv"
+                },
+                {
+                    "filename" : "vega-corthist.csv",
+                    "mimeType" : "text/csv"
+                }
+            ]
         }
     }
 ]
