@@ -551,7 +551,7 @@ paths:
             consumes:
                 - multipart/form-data
             responses:
-                201:
+                200:
                     description: Upload successful; object(s) created
                     schema:
                         $ref: "#/definitions/OpResult"
@@ -1101,6 +1101,28 @@ paths:
                         $ref: "#/definitions/ObjectListing"
                 400:
                     description: Invalid arguments
+        post:
+            summary: Register model
+            description: Register a new model with the workflow engine
+            operationId: registerModel
+            tags:
+                - model
+            parameters:
+                - name: model
+                  in: body
+                  required: true
+                  description: Definition of the new model
+                  schema:
+                      $ref: "#/definitions/ModelDefinition"
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: New model descriptors
+                    schema:
+                        $ref: "#/definitions/ModelDescriptor"
+                400:
+                    description: Invalid model definition
     /models/{modelId}:
         get:
             summary: Get model
@@ -1121,6 +1143,23 @@ paths:
                     description: Model object
                     schema:
                         $ref: "#/definitions/ModelDescriptor"
+                404:
+                    description: Unknown model
+        delete:
+            summary: Delete model
+            description: Delete a model from the registry
+            operationId: deleteModel
+            tags:
+                - model
+            parameters:
+                - name: modelId
+                  in: path
+                  required: true
+                  description: Unique model identifier
+                  type: string
+            responses:
+                204:
+                    description: Model deleted
                 404:
                     description: Unknown model
     /models/{modelId}/properties:
@@ -1408,6 +1447,27 @@ definitions:
                 type: string
             value:
                 type: string
+    ModelDefinition:
+        type: object
+        required:
+            - id
+            - properties
+            - parameters
+            - outputs
+            - connector
+        properties:
+            id:
+                type: string
+            properties:
+                $ref: "#/definitions/UpsertProperties"
+            parameters:
+                type: array
+                items:
+                    $ref: '#/definitions/ParameterDefinition'
+            outputs:
+                $ref: "#/definitions/ModelOutputs"
+            connector:
+                type: object
     ModelDescriptor:
         type: object
         required:
@@ -1428,29 +1488,31 @@ definitions:
                 items:
                     $ref: '#/definitions/ParameterDefinition'
             outputs:
-                type: object
-                required:
-                    - prediction
-                    - attachments
-                properties:
-                    prediction:
-                        type: string
-                    attachments:
-                        type: array
-                        items:
-                            type: object
-                            required:
-                                - filename
-                                - mimeType
-                            properties:
-                                filename:
-                                    type: string
-                                mimeType:
-                                    type: string
+                $ref: "#/definitions/ModelOutputs"
             links:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
+    ModelOutputs:
+        type: object
+        required:
+            - prediction
+            - attachments
+        properties:
+            prediction:
+                type: string
+            attachments:
+                type: array
+                items:
+                    type: object
+                    required:
+                        - filename
+                        - mimeType
+                    properties:
+                        filename:
+                            type: string
+                        mimeType:
+                            type: string
     ModelResourceDescriptor:
         type: object
         required:

@@ -7,7 +7,7 @@ import yaml
 import sys
 
 from scodata.mongo import MongoDBFactory
-from scomodels import init_registry_from_json
+from scoengine import init_registry_from_json
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 *.pyc
 scoserv/venv/
 scoserv/config.yaml
+scoserv/models.json
 resources/
 tests/data/

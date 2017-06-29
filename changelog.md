@@ -40,3 +40,7 @@
 
 * Adjust to changes in data store and model store
 * Bug-fix when deleting unknown attachment
+
+### 0.7.0 - 2017-06-28
+
+* Merge sco-models into sco-engine

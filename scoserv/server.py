@@ -47,15 +47,6 @@ DEFAULT_LISTING_SIZE = 10
 # server.datadir : Path to base directory for data store
 # server.logfile : Path to server log file
 #
-# Configure RabbitMQ publisher to communicate with workers
-#
-# rabbitmq.host : Host running RabbitMQ server
-# rabbitmq.port : Port RabbitMQ server is running on
-# rabbitmq.queue : Queue for communication with workers
-# rabbitmq.user : RabbitMQ user name
-# rabbitmq.password : RabbitMQ user password
-# rabbitmq.vhost : RabbitMQ virtual host
-#
 # app.name : Application name for the service description
 # app.title : Application title for service description (used a page title in UI)
 # app.debug : Flag to switch debugging on/off
@@ -781,6 +772,34 @@ def models_list():
     )
 
 
+@app.route('/models', methods=['POST'])
+def models_register():
+    """Register model (POST) - Register a given predictive model with the
+    worklow engine.
+    """
+    # Make sure that the post request has a json part
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    # Make sure that all required keys are present in the given Json object
+    for key in ['id', 'properties', 'parameters', 'outputs', 'connector']:
+        if not key in json_obj:
+            raise InvalidRequest('missing element in Json body: ' + key)
+    # Call API method to create a new experiment object
+    try:
+        result = api.models_register(
+            json_obj['id'],
+            get_properties_list(json_obj['properties'], True),
+            json_obj['parameters'],
+            json_obj['outputs'],
+            json_obj['connector']
+        )
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+    # Return result including list of references for new experiment
+    return jsonify(result), 201
+
+
 @app.route('/models/<string:model_id>', methods=['GET'])
 def models_get(model_id):
     """Get model (GET) - Retrieve a predictive model definition from the
@@ -792,6 +811,17 @@ def models_get(model_id):
         raise ResourceNotFound(model_id)
     else:
         return jsonify(model)
+
+
+@app.route('/models/<string:model_id>', methods=['DELETE'])
+def models_delete(model_id):
+    """Delete model (DELETE) - Delete an existing model from the registry.
+    """
+    # Get model from database. Raise exception if model does not exist.
+    model = api.models_get(model_id)
+    if not api.models_delete(model_id) is None:
+        return '', 204
+    raise ResourceNotFound(model_id)
 
 
 @app.route('/models/<string:model_id>/properties', methods=['POST'])

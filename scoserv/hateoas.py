@@ -32,6 +32,8 @@ QPARA_STATE = 'state'
 # Reference list keys
 # ------------------------------------------------------------------------------
 
+# Base Url to create model run attachments
+REF_KEY_ATTACHMENTS_CREATE = 'attachments.create'
 # Delete object
 REF_KEY_DELETE = 'delete'
 # Download data file
@@ -86,6 +88,8 @@ REF_KEY_SERVICE_IMAGE_GROUPS_LIST = 'images.groups.list'
 REF_KEY_SERVICE_IMAGE_GROUPS_OPTIONS = 'images.groups.options'
 # List model definitions
 REF_KEY_SERVICE_MODELS_LIST = 'models.list'
+# List all model definitions
+REF_KEY_SERVICE_MODELS_LIST_ALL = 'models.list.all'
 # List subjects
 REF_KEY_SERVICE_SUBJECTS_LIST = 'subjects.list'
 # Create new subject via upload
@@ -548,22 +552,30 @@ class HATEOASReferenceFactory:
             # Remove download link if model run is not in SUCCESS state
             if not obj.state.is_success:
                 del refs[REF_KEY_DOWNLOAD]
-            # Add update state link
-            refs[REF_KEY_UPDATE_STATE_ACTIVE] = '/'.join([
-                refs[REF_KEY_SELF],
-                URL_SUFFIX_UPDATE_STATE,
-                URL_SUFFIX_STATE_ACTIVE
-            ])
-            refs[REF_KEY_UPDATE_STATE_ERROR] = '/'.join([
-                refs[REF_KEY_SELF],
-                URL_SUFFIX_UPDATE_STATE,
-                URL_SUFFIX_STATE_ERROR
-            ])
-            refs[REF_KEY_UPDATE_STATE_SUCCESS] = '/'.join([
-                refs[REF_KEY_SELF],
-                URL_SUFFIX_UPDATE_STATE,
-                URL_SUFFIX_STATE_SUCCESS
-            ])
+                if obj.state.is_idle:
+                    # Add update state link
+                    refs[REF_KEY_UPDATE_STATE_ACTIVE] = '/'.join([
+                        refs[REF_KEY_SELF],
+                        URL_SUFFIX_UPDATE_STATE,
+                        URL_SUFFIX_STATE_ACTIVE
+                    ])
+                if not obj.state.is_failed:
+                    refs[REF_KEY_UPDATE_STATE_ERROR] = '/'.join([
+                        refs[REF_KEY_SELF],
+                        URL_SUFFIX_UPDATE_STATE,
+                        URL_SUFFIX_STATE_ERROR
+                    ])
+                    refs[REF_KEY_UPDATE_STATE_SUCCESS] = '/'.join([
+                        refs[REF_KEY_SELF],
+                        URL_SUFFIX_UPDATE_STATE,
+                        URL_SUFFIX_STATE_SUCCESS
+                    ])
+            else:
+                # Add add attachments Url for successful model runs
+                refs[REF_KEY_ATTACHMENTS_CREATE] = '/'.join([
+                    refs[REF_KEY_SELF],
+                    URL_KEY_ATTACHMENTS
+                ])
             # Return reference list
             return to_references(refs)
         elif obj.is_image:
@@ -608,6 +620,7 @@ class HATEOASReferenceFactory:
             REF_KEY_SERVICE_IMAGE_GROUPS_LIST : self.image_groups_reference(),
             REF_KEY_SERVICE_IMAGE_GROUPS_OPTIONS : self.image_groups_options_reference(),
             REF_KEY_SERVICE_MODELS_LIST : self.models_reference(),
+            REF_KEY_SERVICE_MODELS_LIST_ALL : self.models_reference() + '?' + QPARA_LIMIT + '=-1',
             REF_KEY_SERVICE_SUBJECTS_LIST : self.subjects_reference(),
             REF_KEY_SERVICE_SUBJECTS_UPLOAD : self.subjects_reference()
         })

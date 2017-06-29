@@ -14,10 +14,11 @@ import urllib2
 import yaml
 
 from scodata import SCODataStore
+from scodata.attribute import AttributeDefinition
 from scodata.mongo import MongoDBFactory
 from scoengine import EngineException
-from scoengine import RabbitMQClient
-from scomodels import DefaultModelRegistry
+from scoengine.model import ModelOutputs
+from scoengine import SCOEngine
 
 import hateoas
 
@@ -46,18 +47,8 @@ class SCOServerAPI(object):
         self.db = SCODataStore(mongo, os.path.abspath(config['server.datadir']))
         # Initalize the Url factory
         self.refs = hateoas.HATEOASReferenceFactory(base_url)
-        # Instantiate the RabbitMQ SCO workflow engine.
-        self.engine = RabbitMQClient(
-            host=config['rabbitmq.host'],
-            port=config['rabbitmq.port'],
-            virtual_host=config['rabbitmq.vhost'],
-            queue=config['rabbitmq.queue'],
-            user=config['rabbitmq.user'],
-            password=config['rabbitmq.password'],
-            reference_factory=self.refs
-        )
-        # Instantiate the model registry
-        self.models = DefaultModelRegistry(mongo)
+        # Instantiate the SCO workflow engine.
+        self.engine = SCOEngine(mongo)
         # Widgets are read from a resource in either Json or Yaml format
         # (identified by the resource suffix; default is Json)
         if config['app.widgets'].endswith('.yaml'):
@@ -435,7 +426,7 @@ class SCOServerAPI(object):
             the specified experiment does not exist.
         """
         # Make sure that the referenced model exists.
-        model = self.models.get_model(model_id)
+        model = self.engine.get_model(model_id)
         if model is None:
             raise ValueError('unknown model: ' + model_id)
         # Call create method of API to get a new model run object handle.
@@ -452,7 +443,13 @@ class SCOServerAPI(object):
             return None
         # Start the model run
         try:
-            self.engine.run_model(model_run)
+            self.engine.run_model(
+                model_run,
+                self.refs.experiments_prediction_reference(
+                    experiment_id,
+                    model_run.identifier
+                )
+            )
         except EngineException as ex:
             # Delete model run from database if running the model failed.
             self.db.experiments_predictions_delete(
@@ -1018,6 +1015,21 @@ class SCOServerAPI(object):
     # Models
     # --------------------------------------------------------------------------
 
+    def models_delete(self, model_id):
+        """Delete model with given identifier from registry.
+
+        Parameters
+        ----------
+        model_id : string
+            Unique model identifier
+
+        Returns
+        -------
+        ModelHandle
+            Handle for deleted model or None if unknown
+        """
+        return self.engine.delete_model(model_id)
+
     def models_get(self, model_id):
         """Retrieve a model description from the model registry.
 
@@ -1034,7 +1046,7 @@ class SCOServerAPI(object):
         """
         # Get subject from database. Return None if not subject with given
         # identifier exist.
-        model = self.models.get_model(model_id)
+        model = self.engine.get_model(model_id)
         if model is None:
             return None
         # Model handle does not inherit from ObjectHandle. Thus, we cannot use
@@ -1061,10 +1073,51 @@ class SCOServerAPI(object):
             Dictionary representing a listing of models
         """
         return listing_to_dict(
-            self.models.list_models(limit=limit, offset=offset),
+            self.engine.list_models(limit=limit, offset=offset),
             self.refs.models_reference(),
             self.refs,
             properties=properties
+        )
+
+    def models_register(self, model_id, properties, parameters, outputs, connector):
+        """Register a new model with the engine. Expects connection information
+        for RabbitMQ to submit model run requests to workers.
+
+        Raises ValueError if the given model identifier is not unique.
+
+        Parameters
+        ----------
+        model_id : string
+            Unique model identifier
+        properties : dict
+            Dictionary of model properties
+        parameters :  dict
+            List of attribute definitions for model run parameters
+        outputs : dict
+            Description of model outputs
+        connector : dict
+            Connection information to communicate with model workers.
+
+        Returns
+        -------
+        dict
+            Dictionary representing the model
+        """
+        # Create attribute definitions. Make sure to catch KeyErrors.
+        attributeDefs = []
+        try:
+            for doc in parameters:
+                attributeDefs.append(AttributeDefinition.from_json(doc))
+        except KeyError as ex:
+            raise ValueError(str(ex))
+        return self.model_to_dict(
+            self.engine.register_model(
+                model_id,
+                properties,
+                attributeDefs,
+                ModelOutputs.from_json(outputs),
+                connector
+            )
         )
 
     def models_upsert_property(self, model_id, properties):
@@ -1085,7 +1138,7 @@ class SCOServerAPI(object):
         ModelHandle
             Handle for updated model or None if model doesn't exist
         """
-        return self.models.upsert_object_property(model_id, properties)
+        return self.engine.upsert_model_properties(model_id, properties)
 
     def model_to_dict(self, model):
         """Convert a model handle to a serializable dictionary.
@@ -1253,12 +1306,7 @@ class SCOServerAPI(object):
         """
         # Model properties can be updates. Make a copy of the static service
         # description object and add model listing
-        obj = {key: self.description[key] for key in self.description}
-        obj['resources']['models'] = [
-            self.model_to_dict(model)
-                for model in self.models.list_objects().items
-        ]
-        return obj
+        return {key: self.description[key] for key in self.description}
 
 
 # ------------------------------------------------------------------------------
