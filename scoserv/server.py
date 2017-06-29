@@ -65,6 +65,9 @@ if not LOCAL_CONFIG_FILE is None and os.path.isfile(LOCAL_CONFIG_FILE):
 elif os.path.isfile('./config.yaml'):
     with open('./config.yaml', 'r') as f:
         obj = yaml.load(f.read())
+elif os.path.isfile('/var/sco/config/config.yaml'):
+    with open('/var/sco/config/config.yaml', 'r') as f:
+        obj = yaml.load(f.read())
 else:
     obj = yaml.load(urllib2.urlopen(WEB_CONFIG_FILE_URI).read())
 config = {item['key']:item['value'] for item in obj['properties']}
