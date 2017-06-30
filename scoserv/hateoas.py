@@ -94,6 +94,8 @@ REF_KEY_SERVICE_MODELS_LIST_ALL = 'models.list.all'
 REF_KEY_SERVICE_SUBJECTS_LIST = 'subjects.list'
 # Create new subject via upload
 REF_KEY_SERVICE_SUBJECTS_UPLOAD = 'subjects.upload'
+# List widgets
+REF_KEY_SERVICE_WIDGETS_LIST = 'widgets.list'
 
 # ------------------------------------------------------------------------------
 # Url components
@@ -632,7 +634,8 @@ class HATEOASReferenceFactory:
             REF_KEY_SERVICE_MODELS_LIST : self.models_reference(),
             REF_KEY_SERVICE_MODELS_LIST_ALL : self.models_reference() + '?' + QPARA_LIMIT + '=-1',
             REF_KEY_SERVICE_SUBJECTS_LIST : self.subjects_reference(),
-            REF_KEY_SERVICE_SUBJECTS_UPLOAD : self.subjects_reference()
+            REF_KEY_SERVICE_SUBJECTS_UPLOAD : self.subjects_reference(),
+            REF_KEY_SERVICE_WIDGETS_LIST : self.widgets_reference()
         })
 
     def subject_reference(self, subject_id):

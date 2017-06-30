@@ -957,7 +957,7 @@ def widgets_get(widget_id):
     """Get widget (GET) - Retrieve a visualization widget from the database.
     """
     # Get widget from database. Raise exception if widget does not exist.
-    widget = api.widget_get(widget_id)
+    widget = api.widgets_get(widget_id)
     if widget is None:
         raise ResourceNotFound(widget_id)
     else:
@@ -1003,7 +1003,7 @@ def widgets_delete(widget_id):
 
 
 @app.route('/widgets/<string:widget_id>', methods=['POST'])
-def widgets_update():
+def widgets_update(widget_id):
     """Update widget (POST) - Update code and/or input descriptors for a widget
     in the database."""
     # Make sure that the post request has a json part
@@ -1029,7 +1029,7 @@ def widgets_update():
 
 
 @app.route('/widgets/<string:widget_id>/inputs', methods=['POST'])
-def widgets_add_input_descriptor():
+def widgets_add_input_descriptor(widget_id):
     """Update widget inputs (POST) - Add an input descriptor for a visualization
     widget in the database."""
     # Make sure that the post request has a json part
