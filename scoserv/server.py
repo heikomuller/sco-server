@@ -996,7 +996,7 @@ def widgets_delete(widget_id):
     """
     # Delete widget data object with given identifier. Returns 204 if widget
     # existed or 404 if result of delete is None (by raising ResourceNotFound)
-    if not api.widget_delete(widget_id) is None:
+    if not api.widgets_delete(widget_id) is None:
         return '', 204
     else:
         raise ResourceNotFound(widget_id)
