@@ -4,7 +4,7 @@ properties:
     - key : 'server.url'
       value : 'http://cds-swg1.cims.nyu.edu'
     - key : 'server.port'
-      value : 5000},
+      value : 5000
     - key : 'server.datadir'
       value : './resources/data'
     - key : 'server.logfile'

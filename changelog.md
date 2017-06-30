@@ -44,3 +44,7 @@
 ### 0.7.0 - 2017-06-28
 
 * Merge sco-models into sco-engine
+
+### 0.8.0 - 2017-06-30
+
+* Add visualization widgets as database objects

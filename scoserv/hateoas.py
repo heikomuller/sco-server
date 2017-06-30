@@ -117,6 +117,8 @@ URL_KEY_MODELS = 'models'
 URL_KEY_PREDICTIONS = 'predictions'
 # Url component for subjects
 URL_KEY_SUBJECTS = 'subjects'
+# Url component for widgets
+URL_KEY_WIDGETS = 'widgets'
 
 # Url suffix for download references
 URL_SUFFIX_DOWNLOAD = 'file'
@@ -599,6 +601,14 @@ class HATEOASReferenceFactory:
             return to_references({
                 REF_KEY_SELF : self.model_reference(obj.identifier)
             })
+        elif obj.is_widget:
+            # Get base references.
+            self_ref = self.widget_reference(obj.identifier)
+            refs = base_reference_set(self_ref)
+            # Delete download reference from basic set
+            del refs[REF_KEY_DOWNLOAD]
+            # Return reference list
+            return to_references(refs)
         else:
             raise ValueError('unknown object type')
 
@@ -650,6 +660,28 @@ class HATEOASReferenceFactory:
         """
         return self.base_url + '/' + URL_KEY_SUBJECTS
 
+    def widget_reference(self, widget_id):
+        """Self reference for visualization widget.
+
+        Parameters
+        ----------
+        widget_id : string
+            Unique widget identifier
+
+        Returns
+        -------
+        string
+        """
+        return self.widgets_reference() + '/' + widget_id
+
+    def widgets_reference(self):
+        """Base Url for visualization widgets.
+
+        Returns
+        -------
+        string
+        """
+        return self.base_url + '/' + URL_KEY_WIDGETS
 
 
 # ------------------------------------------------------------------------------

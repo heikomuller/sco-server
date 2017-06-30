@@ -21,6 +21,7 @@ from scoengine.model import ModelOutputs
 from scoengine import SCOEngine
 
 import hateoas
+from widget import WidgetRegistry, WidgetInput
 
 
 class SCOServerAPI(object):
@@ -49,12 +50,8 @@ class SCOServerAPI(object):
         self.refs = hateoas.HATEOASReferenceFactory(base_url)
         # Instantiate the SCO workflow engine.
         self.engine = SCOEngine(mongo)
-        # Widgets are read from a resource in either Json or Yaml format
-        # (identified by the resource suffix; default is Json)
-        if config['app.widgets'].endswith('.yaml'):
-            widgets = yaml.load(read_resource(config['app.widgets']))['widgets']
-        else:
-            widgets = json.load(read_resource(config['app.widgets']))['widgets']
+        # Instantiate the widget registry
+        self.widgets = WidgetRegistry(mongo)
         # Initialize the server description object. Name and title are elements
         # in the config object. Homepage content is read from file. The file
         # name could either be a Url or a reference to a file on local disk.
@@ -68,8 +65,7 @@ class SCOServerAPI(object):
             'resources' : {
                 'imageGroupOptions' : [
                     opt.to_json() for opt in self.db.image_groups_options()
-                ],
-                'widgets' : widgets
+                ]
             },
             'links' : self.refs.service_references()
         }
@@ -1155,6 +1151,9 @@ class SCOServerAPI(object):
             given identifier exists
         """
         obj = object_to_dict(model, self.refs)
+        description = model.description
+        if not description is None:
+            obj['description'] = description
         obj['parameters'] = [
             attr.to_json() for attr in model.parameters
         ]
@@ -1307,6 +1306,186 @@ class SCOServerAPI(object):
         # Model properties can be updates. Make a copy of the static service
         # description object and add model listing
         return {key: self.description[key] for key in self.description}
+
+    # --------------------------------------------------------------------------
+    # Widgets
+    # --------------------------------------------------------------------------
+
+    def widgets_add_input_descriptor(self, widget_id, obj):
+        """Append input descriptor to a given visualization widget.
+
+        Parameters
+        ----------
+        widget_id : string
+            Unique widget identifier
+        obj : dict
+            Serialization of a widget input descriptor
+
+        Returns
+        -------
+        widget.WidgetHandle
+        """
+        self.widgets.append_input_for_widget(
+            widget_id,
+            WidgetInput.from_dict(obj)
+        )
+        return self.widgets_get(widget_id)
+
+    def widgets_create(self, engine, code, inputs, properties):
+        """Creat a new widget in the database.
+
+        Parameters
+        ----------
+        engine : string
+            Visualization engine identifier
+        code : dict
+            Engine-specific code
+        inputs : list({'model':'...', 'attachment':'...'})
+            Input descriptors for the new widget
+        properties : dict
+            Set of experiment properties. Is required to contain at least the
+            widget name
+
+        Returns
+        -------
+        dict
+        """
+        return response_success(
+            self.widgets.create_widget(
+                properties,
+                engine,
+                code,
+                [WidgetInput.from_dict(doc) for doc in inputs]
+            ),
+            self.refs
+        )
+
+    def widgets_delete(self, widget_id):
+        """Delete visualization widget with given identifier from the database.
+
+        Parameters
+        ----------
+        widget_id : string
+            Unique widget identifier
+
+        Returns
+        -------
+        widget.WidgetHandle
+            Handle for deleted widget or None if identifier is unknown
+        """
+        return self.widgets.delete_widget(widget_id)
+
+    def widgets_get(self, widget_id):
+        """Retrieve a widget from the database.
+
+        Parameters
+        ----------
+        widget_id : string
+            Unique widget identifier
+
+        Returns
+        -------
+        dict
+            Dictionary representing the widget or None if no widget with the
+            given identifier exists
+        """
+        # Get subject from database. Return None if not subject with given
+        # identifier exist.
+        widget = self.widgets.get_widget(widget_id)
+        if widget is None:
+            return None
+        return self.widget_to_dict(widget)
+
+    def widgets_list(self, limit=-1, offset=0, properties=None):
+        """Get a listing of all widgets in the database.
+
+        Parameters
+        ----------
+        limit : int, optional
+            Limit the number of items in the returned listing
+        offset : int, optional
+            Start listing at the given index position (in order of items as
+            defined by the data store)
+        properties : list(string), optional
+            List of additional properties to be included in the listing for
+            each item
+
+        Returns
+        -------
+        dict
+            Dictionary representing a listing of widgets
+        """
+        return listing_to_dict(
+            self.widgets.list_widgets(limit=limit, offset=offset),
+            self.refs.widgets_reference(),
+            self.refs,
+            properties=properties
+        )
+
+    def widget_to_dict(self, widget):
+        """Dictionary serialization for visualization widget.
+
+        Parameters
+        ----------
+        widget : widget.WidgetHandle
+            Widget handle
+
+        Returns
+        -------
+        dict
+        """
+        obj = object_to_dict(widget, self.refs)
+        obj['engine'] = widget.engine_id
+        obj['code'] = widget.code
+        obj['inputs'] = [inp.to_dict() for inp in widget.inputs]
+        return obj
+
+    def widgets_update(self, widget_id, code=None, inputs=None):
+        """Update code and/or input descriptors for a widget in the database.
+
+        Will return None if no widget with the given identifier exists.
+
+        Parameters
+        ----------
+        identifier : string
+            Unique widget identifier
+        code : dict, optional
+            New engine-specific code. If None the existing code will not be
+            changed
+        inputs : list({'model':'...', 'attachment':'...'}), optional
+            New list of widget inputs. If None the existing list will not be
+            changed.
+
+        Returns
+        -------
+        widget.WidgetHandle
+        """
+        if not inputs is None:
+            descriptors = [WidgetInput.from_dict(doc) for doc in inputs]
+        else:
+            descriptors = None
+        self.widgets.update_widget(widget_id, code=code, inputs=descriptors)
+        return self.widgets_get(widget_id)
+
+    def widgets_upsert_property(self, widget_id, properties):
+        """Upsert property of given widget.
+
+        Raises ValueError if given property dictionary results in an illegal
+        operation.
+
+        Parameters
+        ----------
+        widget_id : string
+            Unique widget identifier
+        properties : dict()
+            Dictionary of property names and their new values.
+
+        Returns
+        -------
+        widget.WidgetHandle
+            Handle for updated object or None if object doesn't exist
+        """
+        return self.widgets.upsert_object_property(widget_id, properties)
 
 
 # ------------------------------------------------------------------------------

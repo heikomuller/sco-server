@@ -1,7 +1,7 @@
 swagger: "2.0"
 
 info:
-  version: 0.5.0
+  version: 0.7.0
   title: Standard Cortical Observer Web API
   description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store, Model Repository, and Predictive Model Engine
   license:
@@ -1332,6 +1332,187 @@ paths:
                         type: file
                 404:
                     description: File not found
+    /widgets:
+        get:
+            summary: List widgets
+            description: List of visualization widgets in the database
+            operationId: listWidgets
+            tags:
+                - widget
+            parameters:
+                - name: offset
+                  in: query
+                  required: false
+                  description: Offset position for items in listing
+                  type: integer
+                - name: limit
+                  in: query
+                  required: false
+                  description: Limit number of returned items
+                  type: integer
+                - name: properties
+                  in: query
+                  required: false
+                  description: Comma-separated list of properties to be included in result
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: List of widget descriptors
+                    schema:
+                        $ref: "#/definitions/ObjectListing"
+                400:
+                    description: Invalid arguments
+        post:
+            summary: Create widget
+            description: Create a new visualization widget in the database
+            operationId: createWidget
+            tags:
+                - widget
+            parameters:
+                - name: widget
+                  in: body
+                  required: true
+                  description: Definition of the new widget
+                  schema:
+                      $ref: "#/definitions/WidgetDefinition"
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: New widget descriptors
+                    schema:
+                        $ref: "#/definitions/OpResult"
+                400:
+                    description: Invalid widget definition
+    /widgets/{widgetId}:
+        get:
+            summary: Get widget
+            description: Get visualization widget with given identifier
+            operationId: getWidget
+            tags:
+                - widget
+            parameters:
+                - name: widgetId
+                  in: path
+                  required: true
+                  description: Unique widget identifier
+                  type: string
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Widget object
+                    schema:
+                        $ref: "#/definitions/WidgetDescriptor"
+                404:
+                    description: Unknown widget
+        delete:
+            summary: Delete widget
+            description: Delete a visualization widget from the database
+            operationId: deleteWidget
+            tags:
+                - widget
+            parameters:
+                - name: widgetId
+                  in: path
+                  required: true
+                  description: Unique widget identifier
+                  type: string
+            responses:
+                204:
+                    description: Widget deleted
+                404:
+                    description: Unknown widget
+        post:
+            summary: Update widget
+            description: Update code and input list for visualization widget
+            operationId: updateWidget
+            tags:
+                - widget
+            parameters:
+                - name: widgetId
+                  in: path
+                  required: true
+                  description: Unique widget identifier
+                  type: string
+                - name: descriptor
+                  in: body
+                  required: true
+                  description: Updated code and/or input list
+                  schema:
+                      type: object
+                      properties:
+                          code:
+                              type: object
+                          inputs:
+                              type: array
+                              items:
+                                  $ref: "#/definitions/WidgetInput"
+            responses:
+                200:
+                    description: Widget updated
+                    schema:
+                        $ref: "#/definitions/WidgetDescriptor"
+                400:
+                    description: Invalid update content
+                404:
+                    description: Unknown widget
+    /widgets/{widgetId}/inputs:
+        post:
+            summary: Add input descriptor
+            description: Add an input descriptor for a visualization widget
+            operationId: addWidgetInput
+            tags:
+                - widget
+            parameters:
+                - name: widgetId
+                  in: path
+                  required: true
+                  description: Unique widget identifier
+                  type: string
+                - name: descriptor
+                  in: body
+                  required: true
+                  description: Input descriptor
+                  schema:
+                      $ref: "#/definitions/WidgetInput"
+            responses:
+                200:
+                    description: Widget input list updated
+                    schema:
+                        $ref: "#/definitions/WidgetDescriptor"
+                400:
+                    description: Invalid input descriptor
+                404:
+                    description: Unknown widget
+    /widgets/{widgetId}/properties:
+        post:
+            summary: Update widget property
+            description: Insert, delete, or update property of visualization widget
+            operationId: upsertWidgetProperty
+            tags:
+                - widget
+            parameters:
+                - name: widgetId
+                  in: path
+                  required: true
+                  description: Unique widget identifier
+                  type: string
+                - name: property
+                  in: body
+                  required: true
+                  description: Key-value pair defining property and new value
+                  schema:
+                      $ref: "#/definitions/UpsertPropertiesRequest"
+            responses:
+                200:
+                    description: Property updated
+                400:
+                    description: Attempt to update read-only property or delete mandatory property
+                404:
+                    description: Unknown widget
 definitions:
     Attribute:
         type: object
@@ -1670,22 +1851,59 @@ definitions:
         properties:
             properties:
                 $ref: "#/definitions/UpsertProperties"
-    WidgetDescriptor:
+    WidgetDefinition:
         type: object
         required:
             - engine
-            - title
-            - specification
-            - resource
-            - sortOrder
+            - code
+            - inputs
+            - properties
         properties:
             engine:
                 type: string
-            title:
-                type: string
-            specification:
+            code:
                 type: object
-            resource:
+            inputs:
+                type: array
+                items:
+                    $ref: "#/definitions/WidgetInput"
+            properties:
+                $ref: "#/definitions/UpsertProperties"
+    WidgetInput:
+        type: object
+        required:
+            - model
+            - attachment
+        properties:
+            model:
                 type: string
-            sortOrder:
-                type: integer
+            attachment:
+                type: string
+    WidgetDescriptor:
+        type: object
+        required:
+            - id
+            - name
+            - timestamp
+            - engine
+            - code
+            - inputs
+            - properties
+            - links
+        properties:
+            id:
+                type: string
+            engine:
+                type: string
+            code:
+                type: object
+            inputs:
+                type: array
+                items:
+                    $ref: "#/definitions/WidgetInput"
+            properties:
+                $ref: "#/definitions/UpsertProperties"
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"

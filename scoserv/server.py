@@ -12,7 +12,6 @@ from werkzeug.utils import secure_filename
 from api import SCOServerAPI
 import hateoas
 
-
 # ------------------------------------------------------------------------------
 #
 # Gobal Constants
@@ -50,7 +49,6 @@ DEFAULT_LISTING_SIZE = 10
 # app.name : Application name for the service description
 # app.title : Application title for service description (used a page title in UI)
 # app.debug : Flag to switch debugging on/off
-# app.widgets : Definition of widgets to visualize model run post-processing results
 #
 # home.title : Title for main content on Web UI homepage
 # home.content : Html snippet containing the Web UI homepage content
@@ -931,6 +929,137 @@ def subjects_upsert_property(subject_id):
     try:
         if api.subjects_upsert_property(subject_id, properties) is None:
             raise ResourceNotFound(subject_id)
+        else:
+            return '', 200
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+
+
+# ------------------------------------------------------------------------------
+# Widgets
+# ------------------------------------------------------------------------------
+
+@app.route('/widgets')
+def widgets_list():
+    """List widgets (GET) - List of widgets that are in the database.
+    """
+    # Get listing arguments. Method raises exception if argument values are
+    # of invalid type
+    offset, limit, prop_set = get_listing_arguments(request)
+    # Decorate subject listing and return Json object
+    return jsonify(
+        api.widgets_list(limit=limit, offset=offset, properties=prop_set)
+    )
+
+
+@app.route('/widgets/<string:widget_id>', methods=['GET'])
+def widgets_get(widget_id):
+    """Get widget (GET) - Retrieve a visualization widget from the database.
+    """
+    # Get widget from database. Raise exception if widget does not exist.
+    widget = api.widget_get(widget_id)
+    if widget is None:
+        raise ResourceNotFound(widget_id)
+    else:
+        return jsonify(widget)
+
+
+@app.route('/widgets', methods=['POST'])
+def widgets_create():
+    """Create widget (POST) - Create a new visualizaion widget."""
+    # Make sure that the post request has a json part
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    # Make sure that all required keys are present in the given Json object
+    for key in ['engine', 'code', 'inputs', 'properties']:
+        if not key in json_obj:
+            raise InvalidRequest('missing element in Json body: ' + key)
+    # Call API method to create a new widget object
+    try:
+        result = api.widgets_create(
+            json_obj['engine'],
+            json_obj['code'],
+            json_obj['inputs'],
+            get_properties_list(json_obj['properties'], True)
+        )
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+    # Return result including list of references for new experiment
+    return jsonify(result), 201
+
+
+@app.route('/widgets/<string:widget_id>', methods=['DELETE'])
+def widgets_delete(widget_id):
+    """Delete widget (DELETE) - Delete a visualization widget from the
+    database.
+    """
+    # Delete widget data object with given identifier. Returns 204 if widget
+    # existed or 404 if result of delete is None (by raising ResourceNotFound)
+    if not api.widget_delete(widget_id) is None:
+        return '', 204
+    else:
+        raise ResourceNotFound(widget_id)
+
+
+@app.route('/widgets/<string:widget_id>', methods=['POST'])
+def widgets_update():
+    """Update widget (POST) - Update code and/or input descriptors for a widget
+    in the database."""
+    # Make sure that the post request has a json part
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    # code and inputs are optional elements in the request
+    if 'code' in json_obj:
+        code = json_obj['code']
+    else:
+        code = None
+    if 'inputs' in json_obj:
+        inputs = json_obj['inputs']
+    else:
+        inputs = None
+    # Call API method to create a new widget object
+    try:
+        result = api.widgets_update(widget_id, code=code, inputs=inputs)
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+    # Return updated widget descriptor
+    return jsonify(result), 200
+
+
+@app.route('/widgets/<string:widget_id>/inputs', methods=['POST'])
+def widgets_add_input_descriptor():
+    """Update widget inputs (POST) - Add an input descriptor for a visualization
+    widget in the database."""
+    # Make sure that the post request has a json part
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    json_obj = request.json
+    # Call API method to create a new widget object
+    try:
+        result = api.widgets_add_input_descriptor(
+            widget_id,
+            json_obj
+        )
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+    # Return updated widget descriptor
+    return jsonify(result), 200
+
+
+@app.route('/widgets/<string:widget_id>/properties', methods=['POST'])
+def widgets_upsert_property(widget_id):
+    """Upsert widget properties (POST) - Upsert a property of a visualization
+    widget in the database.
+    """
+    # Extract dictionary of key,value-pairs from request.
+    properties = get_upsert_properties(request)
+    # Upsert widget properties. The response indicates if the widget exists.
+    # Will throw ValueError if property set results in illegal update.
+    try:
+        if api.widgets_upsert_property(widget_id, properties) is None:
+            raise ResourceNotFound(widget_id)
         else:
             return '', 200
     except ValueError as ex:

@@ -8,8 +8,9 @@ import unittest
 sys.path.insert(0, os.path.abspath('..'))
 
 from pymongo import MongoClient
+from scodata.mongo import MongoDBFactory
 from scoserv.api import SCOServerAPI
-from scoserv.init_model_repository import load_models
+from scoengine import init_registry_from_json
 
 BASE_URL = 'localhost'
 
@@ -28,16 +29,17 @@ class TestSCOAPI(unittest.TestCase):
         """Initialize the Json serializer."""
         with open(CONFIG_FILE, 'r') as f:
             obj = yaml.load(f.read())
-        config = {item['key']:item['value'] for item in obj['properties']}
-        mongo = MongoClient()
-        mongo.drop_database(config['mongo.db'])
+        self.config = {item['key']:item['value'] for item in obj['properties']}
+        MongoClient().drop_database(cself.onfig['mongo.db'])
         if os.path.isdir(RESOURCES_DIR):
             shutil.rmtree(RESOURCES_DIR)
         os.makedirs(RESOURCES_DIR)
-        with open(MODELS_FILE, 'r') as f:
-            models = json.load(f)
-        load_models(models, mongo[config['mongo.db']].models)
-        self.api = SCOServerAPI(config, BASE_URL)
+        init_registry_from_json(MongoDBFactory(db_name=self.config['mongo.db']), MODELS_FILE)
+        self.api = SCOServerAPI(self.config, BASE_URL)
+
+    def tearDown(self):
+        """Drop the test database."""
+        MongoClient().drop_database(self.config['mongo.db'])
 
     def test_experiment_serialization(self):
         """Test creation and serialization of experiments."""
@@ -87,25 +89,28 @@ class TestSCOAPI(unittest.TestCase):
         for item in listing['items']:
             self.assertEqual(len(item), 4)
             self.assertTrue('id' in item)
-            self.assertTrue('description' in item)
             self.assertTrue('name' in item)
+            self.assertTrue('timestamp' in item)
             self.assertTrue('links' in item)
             model = self.api.models_get(item['id'])
-            self.assertEqual(len(model), 6)
+            self.assertEqual(len(model), 8)
             self.assertTrue('id' in model)
             self.assertTrue('description' in model)
             self.assertTrue('name' in model)
             self.assertTrue('parameters' in model)
             self.assertTrue('outputs' in model)
             self.assertTrue('links' in model)
+            self.assertTrue('properties' in model)
+            self.assertTrue('timestamp' in model)
 
     def test_service_description(self):
         """Test serialization of service description."""
         desc = self.api.service_description()
-        self.assertEqual(len(desc), 4)
+        self.assertEqual(len(desc), 5)
         self.assertTrue('name' in desc)
         self.assertTrue('title' in desc)
-        self.assertTrue('description' in desc)
+        self.assertTrue('overview' in desc)
+        self.assertTrue('resources' in desc)
         self.assertTrue('links' in desc)
 
     def test_subject_serialization(self):
