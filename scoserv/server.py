@@ -400,7 +400,7 @@ def experiments_predictions_create(experiment_id):
         # Return result including list of references for new model run.
         return jsonify(result), 201
     except ValueError as ex:
-        raise InvalidRequest(ex.message)
+        raise InvalidRequest(str(ex))
 
 
 @app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>', methods=['GET'])
