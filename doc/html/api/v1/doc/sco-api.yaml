@@ -1867,6 +1867,24 @@ definitions:
                                 type: array
                                 items:
                                     $ref: "#/definitions/Reference"
+                widgets:
+                    type: array
+                    items:
+                        type: object
+                        required:
+                            - engine
+                            - title
+                            - code
+                            - sortOrder
+                        properties:
+                            engine:
+                                type: string
+                            title:
+                                type: string
+                            code:
+                                type: object
+                            sortOrder:
+                                type: integer
     Reference:
         type: object
         required:

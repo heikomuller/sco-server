@@ -553,6 +553,7 @@ class SCOServerAPI(object):
                 )
             } for attachment in model_run.attachments
         ]
+        obj['widgets'] = [];
         # Return complete serialization of model run
         return obj
 
