@@ -36,6 +36,8 @@ QPARA_STATE = 'state'
 REF_KEY_ATTACHMENTS_CREATE = 'attachments.create'
 # Delete object
 REF_KEY_DELETE = 'delete'
+# API documentation
+REF_KEY_DOC = 'doc'
 # Download data file
 REF_KEY_DOWNLOAD = 'download'
 # Model run listing's reference to it's experiment
@@ -239,7 +241,7 @@ class HATEOASReferenceFactory:
     base_url : string
         Base Url for all resource references
     """
-    def __init__(self, base_url):
+    def __init__(self, base_url, doc_url):
         """Initialize the factory object by providing the base Url for
         generating resource references.
 
@@ -247,11 +249,14 @@ class HATEOASReferenceFactory:
         ----------
         base_url : string
             Base Url for all resource references'
+        doc_url : string
+            Url for API documentation
         """
         self.base_url = base_url
         # Remove trailing '/'
         while self.base_url.endswith('/'):
             self.base_url = self.base_url[:-1]
+        self.doc_url = doc_url
 
     def experiment_reference(self, experiment_id):
         """Self reference to experiment object.
@@ -625,6 +630,7 @@ class HATEOASReferenceFactory:
         """
         return to_references({
             REF_KEY_SELF : self.base_url,
+            REF_KEY_DOC : self.doc_url,
             REF_KEY_SERVICE_EXPERIMENTS_LIST : self.experiments_reference(),
             REF_KEY_SERVICE_EXPERIMENTS_CREATE : self.experiments_reference(),
             REF_KEY_SERVICE_IMAGES_UPLOAD : self.base_url + '/' + URL_KEY_IMAGES + '/upload',

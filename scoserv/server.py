@@ -48,6 +48,7 @@ DEFAULT_LISTING_SIZE = 10
 #
 # app.name : Application name for the service description
 # app.title : Application title for service description (used a page title in UI)
+# app.doc : Url for API documentation
 # app.debug : Flag to switch debugging on/off
 #
 # home.title : Title for main content on Web UI homepage

@@ -47,7 +47,7 @@ class SCOServerAPI(object):
         # Instantiate the Standard Cortical Observer Data Store.
         self.db = SCODataStore(mongo, os.path.abspath(config['server.datadir']))
         # Initalize the Url factory
-        self.refs = hateoas.HATEOASReferenceFactory(base_url)
+        self.refs = hateoas.HATEOASReferenceFactory(base_url, config['app.doc'])
         # Instantiate the SCO workflow engine.
         self.engine = SCOEngine(mongo)
         # Instantiate the widget registry
