@@ -30,7 +30,7 @@ class TestSCOAPI(unittest.TestCase):
         with open(CONFIG_FILE, 'r') as f:
             obj = yaml.load(f.read())
         self.config = {item['key']:item['value'] for item in obj['properties']}
-        MongoClient().drop_database(cself.onfig['mongo.db'])
+        MongoClient().drop_database(self.config['mongo.db'])
         if os.path.isdir(RESOURCES_DIR):
             shutil.rmtree(RESOURCES_DIR)
         os.makedirs(RESOURCES_DIR)
@@ -93,12 +93,13 @@ class TestSCOAPI(unittest.TestCase):
             self.assertTrue('timestamp' in item)
             self.assertTrue('links' in item)
             model = self.api.models_get(item['id'])
-            self.assertEqual(len(model), 8)
+            self.assertEqual(len(model), 9)
             self.assertTrue('id' in model)
             self.assertTrue('description' in model)
             self.assertTrue('name' in model)
             self.assertTrue('parameters' in model)
             self.assertTrue('outputs' in model)
+            self.assertTrue('connector' in model)
             self.assertTrue('links' in model)
             self.assertTrue('properties' in model)
             self.assertTrue('timestamp' in model)

@@ -825,6 +825,26 @@ def models_delete(model_id):
     raise ResourceNotFound(model_id)
 
 
+@app.route('/models/<string:model_id>/connector', methods=['POST'])
+def models_update_connector(model_id):
+    """Update model connector (POST) - Update connector information of a model
+    object in the database.
+    """
+    # Abort with 400 if the request is not a Json request
+    if not request.json:
+        raise InvalidRequest('not a valid Json object in request body')
+    # Upsert experiment properties. The response indicates if the experiment
+    # exists. Will throw ValueError if property set results in illegal update.
+    try:
+        model = api.models_update_connector(model_id, request.json)
+        if model is None:
+            raise ResourceNotFound(model_id)
+        else:
+            return jsonify(model)
+    except ValueError as ex:
+        raise InvalidRequest(str(ex))
+
+
 @app.route('/models/<string:model_id>/properties', methods=['POST'])
 def models_upsert_property(model_id):
     """Upsert model property (POST) - Upsert a property of a model

@@ -242,7 +242,7 @@ class WidgetRegistry(MongoDBStore):
         # Use MongoDB query to get all documents that contain an input
         # descriptor for the given model
         for doc in self.collection.find({'inputs.model' : model_id}):
-            widget = self.from_json(doc)
+            widget = self.from_dict(doc)
             for inp in widget.inputs:
                 if inp.model_id == model_id:
                     key = inp.attachment_name
@@ -252,7 +252,7 @@ class WidgetRegistry(MongoDBStore):
                         result[key] = [widget]
         return result
 
-    def from_json(self, document):
+    def from_dict(self, document):
         """Create a widget handle from a given Json document.
 
         Parameters
@@ -309,7 +309,7 @@ class WidgetRegistry(MongoDBStore):
         """
         return self.list_objects(limit=limit, offset=offset)
 
-    def to_json(self, widget):
+    def to_dict(self, widget):
         """Create a Json-like object for a widget.
 
         Parameters
@@ -322,7 +322,7 @@ class WidgetRegistry(MongoDBStore):
             Json-like object representation
         """
         # Get the basic Json object from the super class
-        obj = super(WidgetRegistry, self).to_json(widget)
+        obj = super(WidgetRegistry, self).to_dict(widget)
         # Add model parameter
         obj['engine'] = widget.engine_id
         obj['code'] = widget.code

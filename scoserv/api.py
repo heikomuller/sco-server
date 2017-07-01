@@ -64,7 +64,7 @@ class SCOServerAPI(object):
             },
             'resources' : {
                 'imageGroupOptions' : [
-                    opt.to_json() for opt in self.db.image_groups_options()
+                    opt.to_dict() for opt in self.db.image_groups_options()
                 ]
             },
             'links' : self.refs.service_references()
@@ -941,7 +941,7 @@ class SCOServerAPI(object):
         """
         return {
             'options' : [
-                opt.to_json() for opt in self.db.image_groups_options()
+                opt.to_dict() for opt in self.db.image_groups_options()
             ]
         }
 
@@ -1103,7 +1103,7 @@ class SCOServerAPI(object):
         attributeDefs = []
         try:
             for doc in parameters:
-                attributeDefs.append(AttributeDefinition.from_json(doc))
+                attributeDefs.append(AttributeDefinition.from_dict(doc))
         except KeyError as ex:
             raise ValueError(str(ex))
         return self.model_to_dict(
@@ -1111,10 +1111,29 @@ class SCOServerAPI(object):
                 model_id,
                 properties,
                 attributeDefs,
-                ModelOutputs.from_json(outputs),
+                ModelOutputs.from_dict(outputs),
                 connector
             )
         )
+
+    def models_update_connector(self, model_id, connector):
+        """Update the connector information for a given model.
+
+        Raises ValueError if connector information is invalid.
+
+        Parameters
+        ----------
+        model_id : string
+            Unique model identifier
+        connector : dict
+            Dictionary of connector specific properties.
+
+        Returns
+        -------
+        ModelHandle
+            Handle for updated model or None if model doesn't exist
+        """
+        return self.engine.update_model_connector(model_id, connector)
 
     def models_upsert_property(self, model_id, properties):
         """Upsert properties of given model.
@@ -1126,7 +1145,7 @@ class SCOServerAPI(object):
         ----------
         model_id : string
             Unique model identifier
-        properties : Dictionary()
+        properties : dict
             Dictionary of property names and their new values.
 
         Returns
@@ -1155,7 +1174,7 @@ class SCOServerAPI(object):
         if not description is None:
             obj['description'] = description
         obj['parameters'] = [
-            attr.to_json() for attr in model.parameters
+            attr.to_dict() for attr in model.parameters
         ]
         obj['outputs'] = {
             'prediction' : model.outputs.prediction_filename,
@@ -1165,6 +1184,10 @@ class SCOServerAPI(object):
                     'mimeType' : a.mime_type
                 } for a in model.outputs.attachments
             ]
+        }
+        obj['connector'] = {
+            key : model.connector[key]
+                for key in model.connector if key != 'password'
         }
         return obj
 

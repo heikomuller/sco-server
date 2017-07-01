@@ -1162,6 +1162,34 @@ paths:
                     description: Model deleted
                 404:
                     description: Unknown model
+    /models/{modelId}/connector:
+        post:
+            summary: Update model connector
+            description: Update connector information for a given model description
+            operationId: updateModelConnector
+            tags:
+                - model
+            parameters:
+                - name: modelId
+                  in: path
+                  required: true
+                  description: Unique model identifier
+                  type: string
+                - name: connector
+                  in: body
+                  required: true
+                  description: New connector information
+                  schema:
+                      $ref: "#/definitions/Connector"
+            responses:
+                200:
+                    description: Model connector updated
+                    schema:
+                        $ref: "#/definitions/ModelDescriptor"
+                400:
+                    description: Invalid connector information
+                404:
+                    description: Unknown model
     /models/{modelId}/properties:
         post:
             summary: Update model property
@@ -1542,6 +1570,25 @@ definitions:
                 type: array
                 items:
                     $ref: "#/definitions/Reference"
+    Connector:
+        type: object
+        required:
+            - connector
+        properties:
+            connector:
+                type: string
+            host:
+                type: string
+            port:
+                type: integer
+            virtualHost:
+                type: string
+            queue:
+                type: string
+            user:
+                type: string
+            password:
+                type: string
     ExperimentHandle:
         allOf:
             - $ref: "#/definitions/ObjectHandle"
@@ -1656,6 +1703,7 @@ definitions:
             - name
             - parameters
             - outputs
+            - connector
             - links
         properties:
             id:
@@ -1670,6 +1718,8 @@ definitions:
                     $ref: '#/definitions/ParameterDefinition'
             outputs:
                 $ref: "#/definitions/ModelOutputs"
+            connector:
+                $ref: "#/definitions/Connector"
             links:
                 type: array
                 items:

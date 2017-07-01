@@ -48,3 +48,8 @@
 ### 0.8.0 - 2017-06-30
 
 * Add visualization widgets as database objects
+
+### 0.9.0 - 2017-07-01
+
+* Add update model connector API call
+* Adjust to renaming of from_json/to_json to from_dict/to_dict
