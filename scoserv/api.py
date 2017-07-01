@@ -1133,7 +1133,9 @@ class SCOServerAPI(object):
         ModelHandle
             Handle for updated model or None if model doesn't exist
         """
-        return self.engine.update_model_connector(model_id, connector)
+        return self.model_to_dict(
+            self.engine.update_model_connector(model_id, connector)
+        )
 
     def models_upsert_property(self, model_id, properties):
         """Upsert properties of given model.
@@ -1169,6 +1171,9 @@ class SCOServerAPI(object):
             Dictionary representing the model or None if no model with the
             given identifier exists
         """
+        # Return None if model is None
+        if model is None:
+            return None
         obj = object_to_dict(model, self.refs)
         description = model.description
         if not description is None:
