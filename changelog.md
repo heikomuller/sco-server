@@ -53,3 +53,4 @@
 
 * Add update model connector API call
 * Adjust to renaming of from_json/to_json to from_dict/to_dict
+* Add API documentation to service links
