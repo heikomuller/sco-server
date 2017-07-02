@@ -118,7 +118,10 @@
             "name": "kay13"
         },
         "outputs" : {
-            "prediction" : "prediction.nii.gz",
+            "prediction" : {
+                "filename" : "prediction.nii.gz",
+                "mimeType" : "application/x-gzip"
+            },
             "attachments" : [
                 {
                     "filename" : "accuracy.pdf",
@@ -263,7 +266,10 @@
             "name": "benson17"
         },
         "outputs" : {
-            "prediction" : "prediction.nii.gz",
+            "prediction" : {
+                "filename" : "prediction.nii.gz",
+                "mimeType" : "application/x-gzip"
+            },
             "attachments" : [
                 {
                     "filename" : "accuracy.pdf",

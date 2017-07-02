@@ -1731,19 +1731,23 @@ definitions:
             - attachments
         properties:
             prediction:
-                type: string
+                $ref: "#/definitions/ModelOutputFile"
             attachments:
                 type: array
                 items:
-                    type: object
-                    required:
-                        - filename
-                        - mimeType
-                    properties:
-                        filename:
-                            type: string
-                        mimeType:
-                            type: string
+                    $ref: "#/definitions/ModelOutputFile"
+    ModelOutputFile:
+        type: object
+        required:
+            - filename
+            - mimeType
+        properties:
+            filename:
+                type: string
+            mimeType:
+                type: string
+            path:
+                type: string
     ModelResourceDescriptor:
         type: object
         required:
@@ -1855,14 +1859,13 @@ definitions:
                         type: object
                         required:
                             - id
+                            - filesize
                             - links
                         properties:
                             id:
                                 type: string
-                            widgets:
-                                type: array
-                                items:
-                                    $ref: '#/definitions/WidgetDescriptor'
+                            filesize:
+                                type: integer
                             links:
                                 type: array
                                 items:
@@ -1875,7 +1878,6 @@ definitions:
                             - engine
                             - title
                             - code
-                            - sortOrder
                         properties:
                             engine:
                                 type: string
@@ -1883,8 +1885,6 @@ definitions:
                                 type: string
                             code:
                                 type: object
-                            sortOrder:
-                                type: integer
     Reference:
         type: object
         required:

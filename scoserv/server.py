@@ -330,8 +330,8 @@ def experiments_predictions_attachments_delete( experiment_id, run_id, resource_
         raise ResourceNotFound(':'.join([experiment_id, run_id, resource_id]))
 
 
-@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/attachments/<string:resource_id>/file', methods=['GET'])
-def experiments_predictions_attachments_download(experiment_id, run_id, resource_id):
+@app.route('/experiments/<string:experiment_id>/predictions/<string:run_id>/attachments/<string:resource_id>', methods=['GET'])
+def experiments_predictions_attachments_get(experiment_id, run_id, resource_id):
     """Download attachment (GET) - Download data file that has been attached to
     a given model run.
     """
@@ -1181,7 +1181,7 @@ def download_file(file_info, identifier, as_attachment=True):
     return send_file(
         file_info.file,
         mimetype=file_info.mime_type,
-        as_attachment=as_attachment,
+        #as_attachment=as_attachment,
         attachment_filename=file_info.name
     )
 

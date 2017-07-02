@@ -10,6 +10,10 @@ import uuid
 from scodata.datastore import ObjectHandle, MongoDBStore
 
 
+"""Unique type identifier for widget resources."""
+TYPE_WIDGET = 'WIDGET'
+
+
 class WidgetInput(object):
     """Widget inputs are pairs of model identifier and attachment name. The
     inputs define which widgets are displayable for a given model run.
@@ -127,9 +131,19 @@ class WidgetHandle(ObjectHandle):
         self.inputs = inputs
 
     @property
-    def is_widget(self):
-        """Override the is_widget property of the base class."""
-        return True
+    def title(self):
+        """Return the widget title if present in the properties. Otherwise use
+        the widget name.
+        """
+        if 'title' in self.properties:
+            return self.properties['title']
+        else:
+            return self.name
+            
+    @property
+    def type(self):
+        """Override the type method of the base class."""
+        return TYPE_WIDGET
 
 
 class WidgetRegistry(MongoDBStore):

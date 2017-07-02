@@ -1,0 +1,39 @@
+{
+  "engine": "VEGALITE",
+  "code": {
+      "mark": "bar",
+      "encoding": {
+          "x": {
+              "bin": {
+                  "maxbins": 10
+              },
+              "field": "correlation",
+              "type": "quantitative"
+          },
+          "y": {
+              "aggregate": "count",
+              "type": "quantitative"
+          }
+      }
+ },
+  "inputs": [
+      {
+        "model": "benson17",
+        "attachment": "vega-corthist.json"
+    },
+    {
+      "model": "kay13",
+      "attachment": "vega-corthist.json"
+  }
+  ],
+  "properties": [
+    {
+      "key": "name",
+      "value": "corthist"
+    },
+    {
+      "key": "title",
+      "value": "Correlation Histogram"
+    }
+  ]
+}

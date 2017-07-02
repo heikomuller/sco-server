@@ -546,14 +546,49 @@ class SCOServerAPI(object):
             {
                 'id' : attachment,
                 'mimeType' : model_run.attachments[attachment].mime_type,
+                'filesize' : model_run.attachments[attachment].filesize,
                 'links' : self.refs.experiments_prediction_attachment_references(
                     experiment_id,
                     prediction_id,
                     model_run.attachments[attachment]
                 )
-            } for attachment in model_run.attachments
+            } for attachment in sorted(model_run.attachments)
         ]
+        # Add widgets
         obj['widgets'] = [];
+        # Get all widgets that have been defined for the model that was run.
+        # Widgets are keyed by attachment.
+        model_widgets = self.widgets.find_widgets_for_model(model_run.model_id)
+        for key in model_run.attachments:
+            if key in model_widgets:
+                for widget in model_widgets[key]:
+                    if widget.engine_id == 'VEGALITE':
+                        attachment = model_run.attachments[key]
+                        url = self.refs.experiments_prediction_attachment_reference(
+                            experiment_id,
+                            prediction_id,
+                            key
+                        )
+                        mime_type = attachment.mime_type
+                        if mime_type == 'text/csv':
+                            format_type = 'csv'
+                        elif mime_type == 'text/tab-separated-values':
+                            format_type = 'tsv'
+                        else:
+                            format_type = 'json'
+                        code = {key : widget.code[key] for key in widget.code}
+                        code['$schema'] = 'https://vega.github.io/schema/vega-lite/v2.json'
+                        #widget.code
+
+                        code['data'] = {
+                            'url' : url,
+                            'formatType' : format_type
+                        }
+                        obj['widgets'].append({
+                            'engine' : widget.engine_id,
+                            'title' : widget.title,
+                            'code' : code
+                        })
         # Return complete serialization of model run
         return obj
 
@@ -1183,11 +1218,16 @@ class SCOServerAPI(object):
             attr.to_dict() for attr in model.parameters
         ]
         obj['outputs'] = {
-            'prediction' : model.outputs.prediction_filename,
+            'prediction' : {
+                    'filename' : model.outputs.prediction_file.filename,
+                    'mimeType' : model.outputs.prediction_file.mime_type,
+                    'path' : model.outputs.prediction_file.path
+                },
             'attachments' : [
                 {
                     'filename' : a.filename,
-                    'mimeType' : a.mime_type
+                    'mimeType' : a.mime_type,
+                    'path' : a.path
                 } for a in model.outputs.attachments
             ]
         }

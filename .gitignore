@@ -4,3 +4,5 @@ scoserv/config.yaml
 scoserv/models.json
 resources/
 tests/data/
+config/kay13.json
+config/benson17.json

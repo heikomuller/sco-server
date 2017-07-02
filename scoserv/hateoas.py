@@ -1,5 +1,13 @@
 """Collection of classes and methods to generate URL's for API resources."""
 
+from scodata.experiment import TYPE_EXPERIMENT
+from scodata.funcdata import TYPE_FUNCDATA
+from scodata.image import TYPE_IMAGE, TYPE_IMAGE_GROUP
+from scodata.modelrun import TYPE_MODEL_RUN
+from scodata.subject import TYPE_SUBJECT
+from scoengine.model import TYPE_MODEL
+from widget import TYPE_WIDGET
+
 # ------------------------------------------------------------------------------
 #
 # Constants
@@ -349,7 +357,7 @@ class HATEOASReferenceFactory:
             REF_KEY_DELETE : self_ref
         }
         # Add download link if attachment is a data file
-        refs[REF_KEY_DOWNLOAD] = self_ref + '/' + URL_SUFFIX_DOWNLOAD
+        refs[REF_KEY_DOWNLOAD] = self_ref
         return to_references(refs)
 
     def experiments_prediction_reference(self, experiment_id, run_id):
@@ -526,7 +534,7 @@ class HATEOASReferenceFactory:
         List
             List of reference objects, i.e., [{rel:..., href:...}]
         """
-        if obj.is_experiment:
+        if obj.type == TYPE_EXPERIMENT:
             # Get base references.
             self_ref = self.experiment_reference(obj.identifier)
             refs = base_reference_set(self_ref)
@@ -543,14 +551,14 @@ class HATEOASReferenceFactory:
                 refs[REF_KEY_FMRI_GET] = fmri_url
             # Return reference list
             return to_references(refs)
-        elif obj.is_functional_data:
+        elif obj.type == TYPE_FUNCDATA:
             # fMRI data objecs have the basic reference set
             refs = base_reference_set(
                 self.experiments_fmri_reference(obj.experiment_id)
             )
             refs['experiment'] = self.experiment_reference(obj.experiment_id)
             return to_references(refs)
-        elif obj.is_model_run:
+        elif obj.type == TYPE_MODEL_RUN:
             # Get base references.
             refs = base_reference_set(
                 self.experiments_prediction_reference(
@@ -587,11 +595,11 @@ class HATEOASReferenceFactory:
                 ])
             # Return reference list
             return to_references(refs)
-        elif obj.is_image:
+        elif obj.type == TYPE_IMAGE:
             # Image files have the basic reference set
             self_ref = self.image_file_reference(obj.identifier)
             return to_references(base_reference_set(self_ref))
-        elif obj.is_image_group:
+        elif obj.type == TYPE_IMAGE_GROUP:
             # Get basic reference set
             self_ref = self.image_group_reference(obj.identifier)
             refs = base_reference_set(self_ref)
@@ -599,16 +607,16 @@ class HATEOASReferenceFactory:
             refs[REF_KEY_UPDATE_OPTIONS] = self_ref + '/' + URL_SUFFIX_OPTIONS
             # Return reference list
             return to_references(refs)
-        elif obj.is_subject:
+        elif obj.type == TYPE_SUBJECT:
             # Subjects have the basic reference set
             self_ref = self.subject_reference(obj.identifier)
             return to_references(base_reference_set(self_ref))
-        elif obj.is_model:
+        elif obj.type == TYPE_MODEL:
             # Return reference list
             return to_references({
                 REF_KEY_SELF : self.model_reference(obj.identifier)
             })
-        elif obj.is_widget:
+        elif obj.type == TYPE_WIDGET:
             # Get base references.
             self_ref = self.widget_reference(obj.identifier)
             refs = base_reference_set(self_ref)

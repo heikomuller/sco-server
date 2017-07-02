@@ -54,3 +54,10 @@
 * Add update model connector API call
 * Adjust to renaming of from_json/to_json to from_dict/to_dict
 * Add API documentation to service links
+
+
+### 0.9.1 - 2017-07-02
+
+* Replace is_widget property of widget resources with type according to changes in sco-datastore
+* Change download Url for model run attachments
+* Add widgets for successful model run resources

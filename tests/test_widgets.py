@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 from pymongo import MongoClient
 from scodata.mongo import MongoDBFactory
-from scoserv.widget import WidgetHandle, WidgetInput, WidgetRegistry
+from scoserv.widget import WidgetHandle, WidgetInput, WidgetRegistry, TYPE_WIDGET
 
 PROPERTIES = {'name' : 'My Widget', 'title' : 'My title'}
 ENGINE = 'ENGINE'
@@ -48,6 +48,7 @@ class TestWidgets(unittest.TestCase):
         """Test creation and retrieval of widgets."""
         widget = self.db.create_widget(PROPERTIES, ENGINE, CODE, INPUTS)
         self.assertEqual(widget.engine_id, ENGINE)
+        self.assertEqual(widget.type, TYPE_WIDGET)
         self.assertTrue('run' in widget.code)
         self.assertEqual(widget.code['run'], 'Hello World')
         self.assertEqual(len(widget.inputs), 3)
