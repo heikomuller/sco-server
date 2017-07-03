@@ -336,20 +336,17 @@ class SCOServerAPI(object):
         """
         # Get the model run to (1) ensure that it exists and (2) retrieve the
         # model definition for a list of defined attachments.
-        model_run = self.db.experiments_predictions_get(
-            experiment_id,
-            prediction_id
-        )
+        model_run = self.db.experiments_predictions_get(experiment_id, run_id)
         if model_run is None:
             return None
         # Get the model definition for a list of attachments. If the resource
         # identifier matches a defined attachment use the defined MimeType for
         # the attachment. Otherwise, MimeType will be inferred from file suffix.
-        model = self.engine.get_model(model_id)
+        model = self.engine.get_model(model_run.model_id)
         if model is None:
             return None
         mime_type = None
-        for attach in model.outputs.attachents:
+        for attach in model.outputs.attachments:
             if attach.filename == resource_id:
                 mime_type = attach.mime_type
                 break
