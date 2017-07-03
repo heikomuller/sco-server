@@ -1,5 +1,6 @@
 """Collection of classes and methods to generate URL's for API resources."""
 
+from scodata.datastore import PROPERTY_FILENAME
 from scodata.experiment import TYPE_EXPERIMENT
 from scodata.funcdata import TYPE_FUNCDATA
 from scodata.image import TYPE_IMAGE, TYPE_IMAGE_GROUP
@@ -132,14 +133,14 @@ URL_KEY_SUBJECTS = 'subjects'
 # Url component for widgets
 URL_KEY_WIDGETS = 'widgets'
 
-# Url suffix for download references
-URL_SUFFIX_DOWNLOAD = 'file'
 #Url suffix for images in an image group
 URL_SUFFIX_IMAGES = 'images'
 #Url suffix for references to update object options
 URL_SUFFIX_OPTIONS = 'options'
 # Url suffix for references to upsert object properties
 URL_SUFFIX_PROPERTIES = 'properties'
+# Url suffix to download successful model run result
+URL_SUFFIX_RESULT = 'result'
 # Url suffux for references to update model run state
 URL_SUFFIX_UPDATE_STATE = 'state'
 URL_SUFFIX_STATE_ACTIVE = 'active'
@@ -423,7 +424,7 @@ class HATEOASReferenceFactory:
         """
         return self.base_url + '/' + URL_KEY_IMAGES + '/' + URL_KEY_IMAGE_FILES
 
-    def image_group_image_references(self, identifier):
+    def image_group_image_references(self, identifier, filename):
         """Reference list for images in an image group listing. Contains the
         self reference and a download link.
 
@@ -431,15 +432,17 @@ class HATEOASReferenceFactory:
         ----------
         identifier : string
             Image file identifier
+        filename : string
+            Name of the image file
 
         Returns
         -------
-        List
+        list
             List of reference objects, i.e., [{rel:..., href:...}]
         """
         return to_references({
             REF_KEY_SELF : self.image_file_reference(identifier),
-            REF_KEY_DOWNLOAD : self.image_file_reference(identifier) + '/' + URL_SUFFIX_DOWNLOAD
+            REF_KEY_DOWNLOAD : self.image_file_reference(identifier) + '/' + filename
         })
 
     def image_group_images_list_reference(self, identifier):
@@ -538,8 +541,6 @@ class HATEOASReferenceFactory:
             # Get base references.
             self_ref = self.experiment_reference(obj.identifier)
             refs = base_reference_set(self_ref)
-            # Delete download reference from basic set
-            del refs[REF_KEY_DOWNLOAD]
             # Add reference for predictions listing and to run new prediction
             prediction_url = self.experiments_predictions_reference(obj.identifier)
             refs[REF_KEY_PREDICTIONS_LIST] = prediction_url
@@ -554,21 +555,26 @@ class HATEOASReferenceFactory:
         elif obj.type == TYPE_FUNCDATA:
             # fMRI data objecs have the basic reference set
             refs = base_reference_set(
-                self.experiments_fmri_reference(obj.experiment_id)
+                self.experiments_fmri_reference(obj.experiment_id),
+                filename=obj.properties[PROPERTY_FILENAME]
             )
             refs['experiment'] = self.experiment_reference(obj.experiment_id)
             return to_references(refs)
         elif obj.type == TYPE_MODEL_RUN:
             # Get base references.
+            if obj.state.is_success:
+                resultfile = URL_SUFFIX_RESULT
+            else:
+                resultfile = None
             refs = base_reference_set(
                 self.experiments_prediction_reference(
                     obj.experiment_id,
                     obj.identifier
-                )
+                ),
+                filename=resultfile
             )
             # Remove download link if model run is not in SUCCESS state
             if not obj.state.is_success:
-                del refs[REF_KEY_DOWNLOAD]
                 if obj.state.is_idle:
                     # Add update state link
                     refs[REF_KEY_UPDATE_STATE_ACTIVE] = '/'.join([
@@ -598,11 +604,19 @@ class HATEOASReferenceFactory:
         elif obj.type == TYPE_IMAGE:
             # Image files have the basic reference set
             self_ref = self.image_file_reference(obj.identifier)
-            return to_references(base_reference_set(self_ref))
+            return to_references(
+                base_reference_set(
+                    self_ref,
+                    filename=obj.properties[PROPERTY_FILENAME]
+                )
+            )
         elif obj.type == TYPE_IMAGE_GROUP:
             # Get basic reference set
             self_ref = self.image_group_reference(obj.identifier)
-            refs = base_reference_set(self_ref)
+            refs = base_reference_set(
+                self_ref,
+                filename=obj.properties[PROPERTY_FILENAME]
+            )
             # Add reference to update image group options
             refs[REF_KEY_UPDATE_OPTIONS] = self_ref + '/' + URL_SUFFIX_OPTIONS
             # Return reference list
@@ -610,7 +624,12 @@ class HATEOASReferenceFactory:
         elif obj.type == TYPE_SUBJECT:
             # Subjects have the basic reference set
             self_ref = self.subject_reference(obj.identifier)
-            return to_references(base_reference_set(self_ref))
+            return to_references(
+                base_reference_set(
+                    self_ref,
+                    filename=obj.properties[PROPERTY_FILENAME]
+                )
+            )
         elif obj.type == TYPE_MODEL:
             # Return reference list
             return to_references({
@@ -620,8 +639,6 @@ class HATEOASReferenceFactory:
             # Get base references.
             self_ref = self.widget_reference(obj.identifier)
             refs = base_reference_set(self_ref)
-            # Delete download reference from basic set
-            del refs[REF_KEY_DOWNLOAD]
             # Return reference list
             return to_references(refs)
         else:
@@ -707,7 +724,7 @@ class HATEOASReferenceFactory:
 #
 # ------------------------------------------------------------------------------
 
-def base_reference_set(self_ref):
+def base_reference_set(self_ref, filename=None):
     """Default set of references for database objects. Contains self reference,
     and references to API calls to delete, download, and property upsert.
 
@@ -715,18 +732,23 @@ def base_reference_set(self_ref):
     ----------
     self_ref : string
         Self reference for object for which reference list is generated
+    filename : string, optional
+        Optional name of downloadable file. If given, a donload reference will
+        be added to the reference set
 
     Returns
     -------
     Dictionary
         Dictionary of references
     """
-    return {
+    refs = {
         REF_KEY_SELF : self_ref,
         REF_KEY_DELETE : self_ref,
-        REF_KEY_DOWNLOAD : self_ref + '/' + URL_SUFFIX_DOWNLOAD,
         REF_KEY_UPSERT_PROPERTY : self_ref + '/' + URL_SUFFIX_PROPERTIES
     }
+    if not filename is None:
+        refs[REF_KEY_DOWNLOAD] = self_ref + '/' + filename
+    return refs
 
 
 def self_reference_set(self_ref):

@@ -1,7 +1,7 @@
 swagger: "2.0"
 
 info:
-  version: 0.7.0
+  version: 0.10.0
   title: Standard Cortical Observer Web API
   description: API to access and manipulate resources managed by the Standard Cortical Observer Data Store, Model Repository, and Predictive Model Engine
   license:
@@ -271,7 +271,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment or fMRI data object
-    /experiments/{experimentId}/fmri/file:
+    /experiments/{experimentId}/fmri/{filename}:
         get:
             summary: Download fMRI data file
             description: Download original functional MRI data file for object associated with given experiment
@@ -285,6 +285,11 @@ paths:
                   in: path
                   required: true
                   description: Unique identifier of experiment object
+                  type: string
+                - name: filename
+                  in: path
+                  required: true
+                  description: Name of the file to download
                   type: string
             produces:
                 - application/gzip
@@ -457,7 +462,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment or prediction
-    /experiments/{experimentId}/predictions/{predictionId}/file:
+    /experiments/{experimentId}/predictions/{predictionId}/result:
         get:
             summary: Download prediction result
             description: Download results produced by the predictive model
@@ -520,6 +525,40 @@ paths:
                 404:
                     description: Unknown experiment or prediction
     /experiments/{experimentId}/predictions/{predictionId}/attachments/{resourceId}:
+        get:
+            summary: Downlaod model run attachment
+            description: Download file that contains results from a model run post-processing step
+            operationId: downloadModelRunAttachment
+            tags:
+                - experiment
+                - download
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: resourceId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of resource
+                  type: string
+            produces:
+                - text/csv
+                - text/tab-separated-values
+            responses:
+                200:
+                    description: Model run resource file
+                    schema:
+                        type: file
+                404:
+                    description: Unknown experiment, prediction, or resource
         post:
             summary: Upload model run attachment
             description: Upload model run post-processing result file
@@ -585,41 +624,6 @@ paths:
             responses:
                 204:
                     description: Object deleted
-                404:
-                    description: Unknown experiment, prediction, or resource
-    /experiments/{experimentId}/predictions/{predictionId}/attachments/{resourceId}/file:
-        get:
-            summary: Downlaod model run attachment
-            description: Download file that contains results from a model run post-processing step
-            operationId: downloadModelRunAttachment
-            tags:
-                - experiment
-                - download
-                - prediction
-            parameters:
-                - name: experimentId
-                  in: path
-                  required: true
-                  description: Unique identifier of experiment object
-                  type: string
-                - name: predictionId
-                  in: path
-                  required: true
-                  description: Unique (relative) identifier of prediction object
-                  type: string
-                - name: resourceId
-                  in: path
-                  required: true
-                  description: Unique (relative) identifier of resource
-                  type: string
-            produces:
-                - text/csv
-                - text/tab-separated-values
-            responses:
-                200:
-                    description: Model run resource file
-                    schema:
-                        type: file
                 404:
                     description: Unknown experiment, prediction, or resource
     /experiments/{experimentId}/predictions/{predictionId}/state/active:
@@ -823,7 +827,7 @@ paths:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown image object
-    /images/files/{imageId}/file:
+    /images/files/{imageId}/{filename}:
         get:
             summary: Download image file
             description: Download single image file for object with given identifier
@@ -836,6 +840,11 @@ paths:
                   in: path
                   required: true
                   description: Unique identifier of image object
+                  type: string
+                - name: filename
+                  in: path
+                  required: true
+                  description: Name of the file to download
                   type: string
             produces:
                 - image/jpeg
@@ -940,7 +949,7 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown image group
-    /images/groups/{imageGroupId}/file:
+    /images/groups/{imageGroupId}/{filename}}:
         get:
             summary: Download image groups
             description: Download image groups file for object with given identifier
@@ -953,6 +962,11 @@ paths:
                   in: path
                   required: true
                   description: Unique identifier of image group object
+                  type: string
+                - name: filename
+                  in: path
+                  required: true
+                  description: Name of the file to download
                   type: string
             produces:
                 - application/gzip
@@ -1336,7 +1350,7 @@ paths:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown subject
-    /subjects/{subjectId}/file:
+    /subjects/{subjectId}/{filename}:
         get:
             summary: Download anatomy file
             description: Download original anatomy file for object with given identifier
@@ -1349,6 +1363,11 @@ paths:
                   in: path
                   required: true
                   description: Unique identifier of subject
+                  type: string
+                - name: filename
+                  in: path
+                  required: true
+                  description: Name of the file to download
                   type: string
             produces:
                 - application/gzip

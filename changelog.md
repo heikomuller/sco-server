@@ -61,3 +61,7 @@
 * Replace is_widget property of widget resources with type according to changes in sco-datastore
 * Change download Url for model run attachments
 * Add widgets for successful model run resources
+
+### 0.10.0 - 2017-07-03
+
+* Change download Url's for file resources to end with the name of the downloaded file

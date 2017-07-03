@@ -927,7 +927,10 @@ class SCOServerAPI(object):
                 'id' : obj.identifier,
                 'name' : obj.name,
                 'folder' : obj.folder,
-                'links' : self.refs.image_group_image_references(obj.identifier)
+                'links' : self.refs.image_group_image_references(
+                    obj.identifier,
+                    os.path.basename(obj.filename)
+                )
             })
         # Call generic item listing decorator
         return items_listing_to_dict(
