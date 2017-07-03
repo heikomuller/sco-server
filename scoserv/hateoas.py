@@ -573,7 +573,11 @@ class HATEOASReferenceFactory:
                 ),
                 filename=resultfile
             )
-            # Remove download link if model run is not in SUCCESS state
+            # Add add attachments Url for all model runs
+            refs[REF_KEY_ATTACHMENTS_CREATE] = '/'.join([
+                refs[REF_KEY_SELF],
+                URL_KEY_ATTACHMENTS
+            ])
             if not obj.state.is_success:
                 if obj.state.is_idle:
                     # Add update state link
@@ -593,12 +597,6 @@ class HATEOASReferenceFactory:
                         URL_SUFFIX_UPDATE_STATE,
                         URL_SUFFIX_STATE_SUCCESS
                     ])
-            else:
-                # Add add attachments Url for successful model runs
-                refs[REF_KEY_ATTACHMENTS_CREATE] = '/'.join([
-                    refs[REF_KEY_SELF],
-                    URL_KEY_ATTACHMENTS
-                ])
             # Return reference list
             return to_references(refs)
         elif obj.type == TYPE_IMAGE:

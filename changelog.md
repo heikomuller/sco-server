@@ -65,3 +65,7 @@
 ### 0.10.0 - 2017-07-03
 
 * Change download Url's for file resources to end with the name of the downloaded file
+
+### 0.10.1 - 2017-07-03
+
+* Add attachments.create reference for all model runs
