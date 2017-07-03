@@ -334,8 +334,31 @@ class SCOServerAPI(object):
             Dictionary representing a successful response. The result is None if
             the specified experiment or model run do not exist.
         """
+        # Get the model run to (1) ensure that it exists and (2) retrieve the
+        # model definition for a list of defined attachments.
+        model_run = self.db.experiments_predictions_get(
+            experiment_id,
+            prediction_id
+        )
+        if model_run is None:
+            return None
+        # Get the model definition for a list of attachments. If the resource
+        # identifier matches a defined attachment use the defined MimeType for
+        # the attachment. Otherwise, MimeType will be inferred from file suffix.
+        model = self.engine.get_model(model_id)
+        if model is None:
+            return None
+        mime_type = None
+        for attach in model.outputs.attachents:
+            if attach.filename = resource_id:
+                mime_type = attach.mime_type
+                break
         result = self.db.experiments_predictions_attachments_create(
-            experiment_id, run_id, resource_id, filename
+            experiment_id,
+            run_id,
+            resource_id,
+            filename,
+            mime_type=mime_type
         )
         # Make sure that the result is not None. Otherwise, return None to
         # indicate an unknown experiment or model run
@@ -578,8 +601,6 @@ class SCOServerAPI(object):
                             format_type = 'json'
                         code = {key : widget.code[key] for key in widget.code}
                         code['$schema'] = 'https://vega.github.io/schema/vega-lite/v2.json'
-                        #widget.code
-
                         code['data'] = {
                             'url' : url,
                             'formatType' : format_type

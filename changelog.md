@@ -69,3 +69,4 @@
 ### 0.10.1 - 2017-07-03
 
 * Add attachments.create reference for all model runs
+* Make proper use of mime type information from the model definition for attachment uploads
