@@ -350,7 +350,7 @@ class SCOServerAPI(object):
             return None
         mime_type = None
         for attach in model.outputs.attachents:
-            if attach.filename = resource_id:
+            if attach.filename == resource_id:
                 mime_type = attach.mime_type
                 break
         result = self.db.experiments_predictions_attachments_create(
