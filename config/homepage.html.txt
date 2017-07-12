@@ -24,18 +24,46 @@ anatomical MRI.</p>
 Below are a high-level overview of the overall system architecture and references to the
 individual repositories.</p>
 
-
+<table class="source-table"><tbody>
+<tr>
+<td class="source-img">
 <img src="https://raw.githubusercontent.com/heikomuller/sco-server/master/doc/graphics/architecture.png" alt="System Architecture Overview">
+</td>
+<td class="source-description">
 
-<h3 class="repo-headline">
+<p class="repo-headline">
     <a class="repo-link" href="">SCO</a>
-</h3>
+</p>
 
-<h3 class="repo-headline">
+<p class="repo-headline">
     <a class="repo-link" href="https://github.com/heikomuller/sco-datastore">Data Store</a>
-</h3>
+</p>
 
-<p class="info">Data store API for primary data objects (i.e. experiments, functional
+<p class="repo-info">Data store API for primary data objects (i.e. experiments, functional
 data, predictions, images, and subject anatomies) that are managed and manipulated by
 the Standard Cortical Observer. The API is a standalone library that is used by the
 SCO Web API but can also be used in an offline setting to manipulate SCO resources.</p>
+
+<p class="repo-headline">
+    <a class="repo-link" href="">Engine</a>
+</p>
+
+<p class="repo-headline">
+    <a class="repo-link" href="">Web Service</a>
+</p>
+
+<p class="repo-headline">
+    <a class="repo-link" href="">User Interface</a>
+</p>
+
+<p class="repo-headline">
+    <a class="repo-link" href="">Client</a>
+</p>
+
+<p class="repo-headline">
+    <a class="repo-link" href="">Worker</a>
+</p>
+
+</td>
+</tr>
+</tbody></table>
