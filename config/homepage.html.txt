@@ -78,13 +78,6 @@ These workers may run locally on the same machine as the data store or on a
 remote machine (using the client to communicate with the data store via the Web
 Service).</p>
 
-<p class="repo-headline" style="color: #e6c873;">
-    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
-    <a class="repo-link" href="https://github.com/heikomuller/sco-ui">User Interface</a>
-</p>
-
-<p class="repo-info">Web Front-end for the Standard Cortical Observer.</p>
-
 <p class="repo-headline" style="color: #e6c873">
     <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
     <a class="repo-link" href="https://github.com/heikomuller/sco-client">Client</a>
@@ -95,6 +88,13 @@ Web API's (SCO-API). The client provides methods to access resources managed by
 an SCO-API running on a remote machine. Using the client library one can develop
 code (e.g. predictive models) that run on a local machine but access resources
 from a SCO Web Service.</p>
+
+<p class="repo-headline" style="color: #e6c873;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-ui">User Interface</a>
+</p>
+
+<p class="repo-info">Web Front-end for the Standard Cortical Observer.</p>
 
 </td>
 
