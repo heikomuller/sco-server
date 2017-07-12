@@ -24,7 +24,8 @@ anatomical MRI.</p>
 Below are a high-level overview of the overall system architecture and references to the
 individual repositories.</p>
 
-<img src="architecture.svg" alt="System Architecture Overview">
+
+<img src="https://raw.githubusercontent.com/heikomuller/sco-server/master/doc/graphics/architecture.png" alt="System Architecture Overview">
 
 <h3 class="repo-headline">
     <a class="repo-link" href="">SCO</a>
