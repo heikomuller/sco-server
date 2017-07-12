@@ -17,3 +17,24 @@ model to be multi-scale rather than limited to a single spatial frequency band,
 and we will develop software infrastructure to facilitate model development and
 model comparison, and to house a database of stimuli, fMRI responses, and
 anatomical MRI.</p>
+
+<h3 class="doc-headline">Sources</h3>
+
+<p class="info">The source code for the project is distributed across seven repositories.
+Below are a high-level overview of the overall system architecture and references to the
+individual repositories.</p>
+
+<img src="architecture.svg" alt="System Architecture Overview">
+
+<h3 class="repo-headline">
+    <a class="repo-link" href="">SCO</a>
+</h3>
+
+<h3 class="repo-headline">
+    <a class="repo-link" href="https://github.com/heikomuller/sco-datastore">Data Store</a>
+</h3>
+
+<p class="info">Data store API for primary data objects (i.e. experiments, functional
+data, predictions, images, and subject anatomies) that are managed and manipulated by
+the Standard Cortical Observer. The API is a standalone library that is used by the
+SCO Web API but can also be used in an offline setting to manipulate SCO resources.</p>
