@@ -70,3 +70,8 @@
 
 * Add attachments.create reference for all model runs
 * Make proper use of mime type information from the model definition for attachment uploads
+
+### 0.11.0 - 2017-07-13
+
+* Add content pages
+* Read page content on access

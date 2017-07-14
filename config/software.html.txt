@@ -1,0 +1,84 @@
+<p class="info">The source code for this project is distributed across several repositories.
+Here is a high-level overview of the overall system architecture and the individual repositories.</p>
+
+<table class="source-table"><tbody>
+<tr>
+
+<td class="source-description">
+
+<p class="repo-headline" style="color: #cc9287;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/WinawerLab/sco">SCO</a>
+</p>
+
+<p class="repo-info">The Standard Cortical Observer (SCO) library is intended as
+both a model and a modeling framework for predicting cortical responses to visual
+stimuli. The library can be run directly or called from Python code, and it is
+designed such that model comparison and modification are easy.</p>
+
+<p class="repo-headline" style="color: #7aa6cf;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-datastore">Data Store</a>
+</p>
+
+<p class="repo-info">Data store API for primary data objects (i.e. experiments, functional
+data, predictions, images, and subject anatomies) that are managed and manipulated by
+the Standard Cortical Observer. The API is a standalone library that is used by the
+SCO Web API but can also be used in an offline setting to manipulate objects.</p>
+
+<p class="repo-headline" style="color: #7aa6cf;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-engine">Engine</a>
+</p>
+
+<p class="repo-info">The workflow engine maintains a registry of predictive models
+and co-ordinates model execution. The actual workflow is executed by workers that
+are defined in the <a class="text-link" href="https://github.com/heikomuller/sco-worker">
+SCO Worker module</a>. The intention behind a separate engine module is to
+decouple the web service from the predictive model code.</p>
+
+<p class="repo-headline" style="color: #92bd80;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-server">Web Service</a>
+</p>
+
+<p class="repo-info">Web API to access and manipulate resources that are managed
+by the <a class="text-link" href="https://github.com/heikomuller/sco-datastore">Data Store</a>.
+A documentation of the Web API can be found <a class="text-link" href="http://cds-jaw.cims.nyu.edu/sco-server/api/v1/doc/">here</a>.</p>
+
+<p class="repo-headline" style="color: #92bd80;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-worker">Worker</a>
+</p>
+
+<p class="repo-info">Workers are used to execute predictive model run requests.
+These workers may run locally on the same machine as the data store or on a
+remote machine (using the client to communicate with the data store via the Web
+Service).</p>
+
+<p class="repo-headline" style="color: #e6c873">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-client">Client</a>
+</p>
+
+<p class="repo-info">Python library to interact with Standard Cortical Observer
+Web API's (SCO-API). The client provides methods to access resources managed by
+an SCO-API running on a remote machine. Using the client library one can develop
+code (e.g. predictive models) that run on a local machine but access resources
+from a SCO Web Service.</p>
+
+<p class="repo-headline" style="color: #e6c873;">
+    <span class="repo-icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+    <a class="repo-link" href="https://github.com/heikomuller/sco-ui">User Interface</a>
+</p>
+
+<p class="repo-info">Web Front-end for the Standard Cortical Observer.</p>
+
+</td>
+
+<td class="source-img">
+<img src="https://raw.githubusercontent.com/heikomuller/sco-server/master/doc/graphics/architecture.png" alt="System Architecture Overview">
+</td>
+
+</tr>
+</tbody></table>

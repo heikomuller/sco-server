@@ -21,5 +21,12 @@ properties:
       value: true
     - key : 'home.title'
       value : 'Welcome'
-    - key: home.content
+    - key: 'home.content'
       value: 'https://raw.githubusercontent.com/heikomuller/sco-server/master/config/homepage.html.txt'
+    - key: 'doc.pages'
+      value:
+          - id: 'software'
+            label: 'Software'
+            title: 'Software Resources'
+            sortOrder: 0,
+            resource: 'https://raw.githubusercontent.com/heikomuller/sco-server/master/config/software.html.txt'

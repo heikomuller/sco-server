@@ -126,6 +126,8 @@ URL_KEY_IMAGE_FILES = 'files'
 URL_KEY_IMAGE_GROUPS = 'groups'
 # Url component for model definition
 URL_KEY_MODELS = 'models'
+# Url component for content pages
+URL_KEY_PAGES = 'pages'
 # Url component for model run objects
 URL_KEY_PREDICTIONS = 'predictions'
 # Url component for subjects
@@ -641,6 +643,24 @@ class HATEOASReferenceFactory:
             return to_references(refs)
         else:
             raise ValueError('unknown object type')
+
+    def page_references(self, page_id):
+        """Reference set for a content page. Contains only a self reference.
+
+        Parameters
+        ----------
+        page : dict
+            Page description from the service configuration
+
+        Returns
+        -------
+        list
+            List of reference objects, i.e., [{rel:..., href:...}]
+        """
+        return self_reference_set(
+            self.base_url + '/' + URL_KEY_PAGES + '/' + page_id
+        )
+
 
     def service_references(self):
         """Get primary references to access resources and methods of the

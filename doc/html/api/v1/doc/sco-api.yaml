@@ -53,16 +53,16 @@ paths:
                                 type: object
                                 required:
                                     - imageGroupOptions
-                                    - models
+                                    - pages
                                 properties:
                                     imageGroupOptions:
                                         type: array
                                         items:
                                             $ref: '#/definitions/ParameterDefinition'
-                                    models:
+                                    pages:
                                         type: array
                                         items:
-                                            $ref: '#/definitions/ModelDescriptor'
+                                            $ref: '#/definitions/ContenPageDescriptor'
                             links:
                                 type: array
                                 items:
@@ -1230,6 +1230,19 @@ paths:
                     description: Attempt to update read-only property or delete mandatory property
                 404:
                     description: Unknown model
+    /pages/{pageId}:
+        get:
+            summary: Get page
+            description: Get content for a documntation page
+            tag:
+                - pages
+            parameters:
+                - name: pageId
+                  in: path
+                  required: true
+                  description: Unique content page identifier
+                  schema:
+                      $ref: "#/definitions/ContentPage"
     /subjects:
         get:
             summary: List subjects
@@ -1608,6 +1621,42 @@ definitions:
                 type: string
             password:
                 type: string
+    ContentPage:
+        type: object
+        required:
+            - id
+            - label
+            - title
+            - body
+            - links
+        properties:
+            id:
+                type: string
+            label:
+                type: string
+            title:
+                type: string
+            body:
+                type: string
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
+    ContentPageDescriptor:
+        type: object
+        required:
+            - id
+            - label
+            - links
+        properties:
+            id:
+                type: string
+            label:
+                type: string
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
     ExperimentHandle:
         allOf:
             - $ref: "#/definitions/ObjectHandle"

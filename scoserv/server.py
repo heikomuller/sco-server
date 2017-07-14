@@ -54,6 +54,8 @@ DEFAULT_LISTING_SIZE = 10
 # home.title : Title for main content on Web UI homepage
 # home.content : Html snippet containing the Web UI homepage content
 #
+# doc.pages: List of content pages for the information menu
+#
 # The file is expected to contain a Json object with a single element
 # 'properties' that is an array of key, value pair objects representing the
 # configuration parameters.
@@ -865,6 +867,23 @@ def models_upsert_property(model_id):
             return '', 200
     except ValueError as ex:
         raise InvalidRequest(str(ex))
+
+
+# ------------------------------------------------------------------------------
+# Pages
+# ------------------------------------------------------------------------------
+
+@app.route('/pages/<string:page_id>', methods=['GET'])
+def pages_get(page_id):
+    """Get content page (GET) - Retrieve body and title for a given content
+    page.
+    """
+    # Get subject from database. Raise exception if subject does not exist.
+    page = api.pages_get(page_id)
+    if page is None:
+        raise ResourceNotFound(page_id)
+    else:
+        return jsonify(page)
 
 
 # ------------------------------------------------------------------------------

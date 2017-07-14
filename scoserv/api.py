@@ -20,8 +20,13 @@ from scoengine import EngineException
 from scoengine.model import ModelOutputs
 from scoengine import SCOEngine
 
+from content import ContentPage
 import hateoas
 from widget import WidgetRegistry, WidgetInput
+
+
+"""Home page content identifier."""
+PAGE_HOME = 'home'
 
 
 class SCOServerAPI(object):
@@ -52,22 +57,41 @@ class SCOServerAPI(object):
         self.engine = SCOEngine(mongo)
         # Instantiate the widget registry
         self.widgets = WidgetRegistry(mongo)
+        # Initialize the set of content pages. Add default home page at the end.
+        self.pages = {}
+        page_descriptors = []
+        for doc in config['doc.pages']:
+            page = ContentPage(doc)
+            self.pages[page.id] = page
+            page_descriptors.append(page)
+        home_page = ContentPage({
+            'id': PAGE_HOME,
+            'label': PAGE_HOME,
+            'title': config['home.title'],
+            'sortOrder': -1,
+            'resource': config['home.content']
+        })
+        self.pages[PAGE_HOME] = home_page
+        page_descriptors.append(home_page)
         # Initialize the server description object. Name and title are elements
         # in the config object. Homepage content is read from file. The file
         # name could either be a Url or a reference to a file on local disk.
         self.description = {
-            'name' : config['app.name'],
-            'title' : config['app.title'],
-            'overview' : {
-                'title': config['home.title'],
-                'content': read_resource(config['home.content'])
-            },
-            'resources' : {
-                'imageGroupOptions' : [
+            'name': config['app.name'],
+            'title': config['app.title'],
+            'resources': {
+                'imageGroupOptions': [
                     opt.to_dict() for opt in self.db.image_groups_options()
+                ],
+                'pages': [
+                    page_descriptor_to_dict(page, self.refs)
+                        for page in sorted(
+                            page_descriptors,
+                            key = lambda p: (p.sort_order, p.label)
+                        )
                 ]
             },
-            'links' : self.refs.service_references()
+            'links': self.refs.service_references()
         }
 
     # --------------------------------------------------------------------------
@@ -1259,6 +1283,29 @@ class SCOServerAPI(object):
         return obj
 
     # --------------------------------------------------------------------------
+    # Pages
+    # --------------------------------------------------------------------------
+
+    def pages_get(self, page_id):
+        """Get body and title for the content page with the given identifier.
+
+        Returns None if the page with the given identifier does not exist.
+
+        Parameters
+        ----------
+        page_id : string
+            Unique content page identifier
+
+        Returns
+        -------
+        dict
+            Dictionary serialization of the content page
+        """
+        if not page_id in self.pages:
+            return None
+        return page_to_dict(self.pages[page_id], self.refs)
+
+    # --------------------------------------------------------------------------
     # Subjects
     # --------------------------------------------------------------------------
 
@@ -1708,27 +1755,47 @@ def object_to_dict(obj, refs):
     }
 
 
-def read_resource(resource):
-    """Read content of a given resource. The resource could either be identified
-    by a Url or it is a file on the local disk.
+def page_to_dict(page, refs):
+    """Dictionary representation for a content page .
 
     Parameters
     ----------
-    resource : string
-        Resource identifier. Either a Url or the path to a file on disk
+    page : ContentPage
+        Content Page handle
+    refs : hateoas.HATEOASReferenceFactory
+        Url factory for API resources
 
     Returns
     -------
-    string
-        Contents of the resource
+    dict
+        Dictionary representing a content page
     """
-    # Check if resource is a Url
-    for url_prefix in ['http://', 'https://', 'file://']:
-        if resource.startswith(url_prefix):
-            return urllib2.urlopen(resource).read()
-    # Read local file if resource is not a Url
-    with open(resource, 'r') as f:
-        return f.read()
+    obj = page_descriptor_to_dict(page, refs)
+    obj['title'] = page.title
+    obj['body'] = page.body
+    return obj
+
+
+def page_descriptor_to_dict(page, refs):
+    """Dictionary representation for a content page descriptor.
+
+    Parameters
+    ----------
+    page : ContentPage
+        Content Page handle
+    refs : hateoas.HATEOASReferenceFactory
+        Url factory for API resources
+
+    Returns
+    -------
+    dict
+        Dictionary representing a page descriptor
+    """
+    return {
+        'id' : page.id,
+        'label' : page.label,
+        'links' : refs.page_references(page.id)
+    }
 
 
 def response_success(obj, refs):
