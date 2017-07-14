@@ -1241,8 +1241,7 @@ paths:
                   in: path
                   required: true
                   description: Unique content page identifier
-                  schema:
-                      $ref: "#/definitions/ContentPage"
+                  type: string
             produces:
                 - application/json
             responses:
