@@ -1234,7 +1234,7 @@ paths:
         get:
             summary: Get page
             description: Get content for a documntation page
-            tag:
+            tags:
                 - pages
             parameters:
                 - name: pageId
