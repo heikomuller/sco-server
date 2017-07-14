@@ -77,7 +77,7 @@ from a SCO Web Service.</p>
 </td>
 
 <td class="source-img">
-<img src="https://raw.githubusercontent.com/heikomuller/sco-server/master/doc/graphics/architecture_small.png" alt="System Architecture Overview">
+<img src="https://raw.githubusercontent.com/heikomuller/sco-server/master/doc/graphics/architecture_medium.png" alt="System Architecture Overview">
 </td>
 
 </tr>
