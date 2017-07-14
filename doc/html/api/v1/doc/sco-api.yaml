@@ -1243,6 +1243,15 @@ paths:
                   description: Unique content page identifier
                   schema:
                       $ref: "#/definitions/ContentPage"
+            produces:
+                - application/json
+            responses:
+                200:
+                    description: Content page
+                    schema:
+                        $ref: "#/definitions/ContentPage"
+                404:
+                    description: Unknown page
     /subjects:
         get:
             summary: List subjects
