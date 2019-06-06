@@ -3,7 +3,7 @@
 from scodata.datastore import PROPERTY_FILENAME
 from scodata.experiment import TYPE_EXPERIMENT
 from scodata.funcdata import TYPE_FUNCDATA
-from scodata.image import TYPE_IMAGE, TYPE_IMAGE_GROUP
+from scodata.image import TYPE_IMAGE, TYPE_IMAGE_GROUP, TYPE_PREDICTION_IMAGE_SET
 from scodata.modelrun import TYPE_MODEL_RUN
 from scodata.subject import TYPE_SUBJECT
 from scoengine.model import TYPE_MODEL
@@ -621,6 +621,10 @@ class HATEOASReferenceFactory:
             refs[REF_KEY_UPDATE_OPTIONS] = self_ref + '/' + URL_SUFFIX_OPTIONS
             # Return reference list
             return to_references(refs)
+        elif obj.type == TYPE_PREDICTION_IMAGE_SET:
+            return to_references(
+                base_reference_set(self.image_group_reference(obj.identifier))
+            )
         elif obj.type == TYPE_SUBJECT:
             # Subjects have the basic reference set
             self_ref = self.subject_reference(obj.identifier)

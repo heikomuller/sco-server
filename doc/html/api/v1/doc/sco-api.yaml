@@ -462,6 +462,43 @@ paths:
                     description: Object deleted
                 404:
                     description: Unknown experiment or prediction
+    /experiments/{experimentId}/predictions/{predictionId}/images:
+        post:
+            summary: Upload prediction image set
+            description: Upload a new archive of prediction output images
+            operationId: uploadExperimentPredictionImages
+            tags:
+                - experiment
+                - prediction
+            parameters:
+                - name: experimentId
+                  in: path
+                  required: true
+                  description: Unique identifier of experiment object
+                  type: string
+                - name: predictionId
+                  in: path
+                  required: true
+                  description: Unique (relative) identifier of prediction object
+                  type: string
+                - name: file
+                  in: formData
+                  required: true
+                  description: Image or archive file
+                  type: file
+            consumes:
+                - multipart/form-data
+            produces:
+                - application/json
+            responses:
+                201:
+                    description: New image set created
+                    schema:
+                        $ref: "#/definitions/PredictionImageSetDescriptor"
+                400:
+                    description: Invalid image set archive
+                404:
+                    description: Unknown experiment or prediction
     /experiments/{experimentId}/predictions/{predictionId}/result:
         get:
             summary: Download prediction result
@@ -1961,6 +1998,18 @@ definitions:
                                 type: string
                             code:
                                 type: object
+    PredictionImageSetDescriptor:
+        type: object
+        required:
+            - id
+            - links
+        properties:
+            id:
+                type: string
+            links:
+                type: array
+                items:
+                    $ref: "#/definitions/Reference"
     Reference:
         type: object
         required:

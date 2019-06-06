@@ -634,6 +634,35 @@ class SCOServerAPI(object):
         # Return complete serialization of model run
         return obj
 
+    def experiments_predictions_image_set_create(self, experiment_id, run_id, filename):
+        """Upload a tar archive containing a prediction image set that was
+        produced as the result of a successful model run.
+
+        Parameters
+        ----------
+        experiment_id : string
+            Unique experiment identifier
+        run_id : string
+            Unique model run identifier
+        filename : string
+            Path to uploaded image set archive file
+
+        Returns
+        -------
+        dict
+            Dictionary serialization of a prediction image set descriptor
+        """
+        # Create prediction image set from given file. Returns None if the
+        # specified model run does not exist or if its state is not SUCCESS.
+        image_set = self.db.experiments_predictions_image_set_create(
+            experiment_id,
+            run_id,
+            filename
+        )
+        if image_set is None:
+            return None
+        return object_to_dict(image_set, self.refs)
+
     def experiments_predictions_list(self, experiment_id, limit=-1, offset=0, properties=None):
         """Get a listing of all model runs for a given experiment in the data
         store.
